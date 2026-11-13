@@ -642,6 +642,25 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
         );
         const fov = Number(url.searchParams.get('fov') || source?.fovDeg);
         const pitch = Number(url.searchParams.get('pitch') || source?.pitchDeg);
+        const upstreamOnly = url.searchParams.get('upstreamOnly') === '1';
+        const omitPlaceholder =
+          upstreamOnly || url.searchParams.get('omitPlaceholder') === '1';
+        const sendPlaceholder = (sourceKind, status) => {
+          if (omitPlaceholder) {
+            res.writeHead(204, {
+              'Cache-Control': 'no-store',
+              'X-CCTV-Source': sourceKind,
+            });
+            res.end();
+            return;
+          }
+          res.writeHead(200, {
+            'Content-Type': 'image/svg+xml',
+            'Cache-Control': 'no-store',
+            'X-CCTV-Source': sourceKind,
+          });
+          res.end(buildSyntheticCctvSvg({ cameraId, label, city, status }));
+        };
 
         // Only use server-registered upstream URLs — never accept client-supplied URLs
         // (prevents SSRF via ?upstream= query parameter)
@@ -669,42 +688,19 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
           source?.sourceKind === 'mlit-river' &&
           isMlitRiverAdjustmentImage(upstreamImage)
         ) {
-          const svg = buildSyntheticCctvSvg({
-            cameraId,
-            label,
-            city,
-            status: 'CAMERA UNDER ADJUSTMENT',
-          });
           setHealth(cameraId, {
             status: 'degraded',
             sourceKind: 'snapshot',
             label: source.provider || 'MLIT river cameras',
             message: 'Provider camera under adjustment',
           });
-          res.writeHead(200, {
-            'Content-Type': 'image/svg+xml',
-            'Cache-Control': 'no-store',
-            'X-CCTV-Source': 'provider-maintenance',
-          });
-          res.end(svg);
+          sendPlaceholder('provider-maintenance', 'CAMERA UNDER ADJUSTMENT');
           return;
         }
         if (upstreamImage?.throttled) {
           // Inside the provider's refresh floor with no frame to reuse: a
           // placeholder, not Street View, and no health change.
-          res.writeHead(200, {
-            'Content-Type': 'image/svg+xml',
-            'Cache-Control': 'no-store',
-            'X-CCTV-Source': 'synthetic',
-          });
-          res.end(
-            buildSyntheticCctvSvg({
-              cameraId,
-              label,
-              city,
-              status: 'WAITING FOR NEXT FRAME',
-            }),
-          );
+          sendPlaceholder('synthetic', 'WAITING FOR NEXT FRAME');
           return;
         }
         if (upstreamImage?.ok) {
@@ -718,6 +714,10 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
                 ? 'Cached snapshot active'
                 : 'Upstream snapshot active',
           });
+          if (upstreamOnly && upstreamImage.stale) {
+            sendPlaceholder('stale', 'UPSTREAM UNAVAILABLE');
+            return;
+          }
           res.writeHead(200, {
             'Content-Type': upstreamImage.contentType,
             'Cache-Control': 'no-store',
@@ -734,15 +734,16 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
         const forwarded = PROXY_SIGNALS.some(
           (name) => req.headers?.[name] !== undefined,
         );
-        const sv = forwarded
-          ? null
-          : await streetViewFallback({
-              lat,
-              lon,
-              heading,
-              fov,
-              pitch,
-            });
+        const sv =
+          forwarded || upstreamOnly
+            ? null
+            : await streetViewFallback({
+                lat,
+                lon,
+                heading,
+                fov,
+                pitch,
+              });
         if (sv?.ok) {
           setHealth(cameraId, {
             status: 'degraded',
@@ -759,15 +760,6 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
           return;
         }
 
-        const svg = buildSyntheticCctvSvg({
-          cameraId,
-          label,
-          city,
-          status: source?.url
-            ? 'UPSTREAM UNAVAILABLE'
-            : 'NO UPSTREAM CONFIGURED',
-        });
-
         setHealth(cameraId, {
           status: 'degraded',
           sourceKind: 'synthetic',
@@ -777,12 +769,10 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
             : 'No source configured',
         });
 
-        res.writeHead(200, {
-          'Content-Type': 'image/svg+xml',
-          'Cache-Control': 'no-store',
-          'X-CCTV-Source': 'synthetic',
-        });
-        res.end(svg);
+        sendPlaceholder(
+          'synthetic',
+          source?.url ? 'UPSTREAM UNAVAILABLE' : 'NO UPSTREAM CONFIGURED',
+        );
       } catch (error) {
         console.error('[CCTV Proxy]', error?.message || String(error));
         res.writeHead(500, { 'Content-Type': 'application/json' });

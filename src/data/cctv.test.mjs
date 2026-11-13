@@ -778,6 +778,10 @@ test('real active monitor plane owns one protected host label and no native labe
       showProjection: true,
     });
     refreshCoverageStyles();
+    assert.equal(runtime.planeEntity.show, false, 'waiting for a decoded frame');
+    assert.deepEqual(calls, [], 'no label until the monitor can draw');
+    runtime.drawnImageStamp = 1;
+    refreshCoverageStyles();
 
     assert.ok(
       runtime.planeEntity,

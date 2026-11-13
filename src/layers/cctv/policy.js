@@ -99,11 +99,6 @@ export const VIEW_GEOMETRY_ATTEMPTS = 2;
 
 export const VIEW_GEOMETRY_RETRY_MS = 1500;
 
-// Throttle for placeholder repaints — the projection RAF loop must not
-// re-fill a 1080p canvas on every frame while a feed image is still loading.
-
-export const PLACEHOLDER_REPAINT_MS = 750;
-
 // v1 key is retired dead data (owner decision #3, §9.3 — WIPE CLEAN, no
 // legacy import): kept here only as a documented constant so nothing ever
 // re-reads it by accident. Exported for the unit suite's "v1 is ignored"

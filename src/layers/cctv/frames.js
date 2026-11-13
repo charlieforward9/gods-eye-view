@@ -7,7 +7,6 @@ import {
   PROJECTION_TEXTURE_SWAP_MS,
   PROJECTION_ACTIVE_REFRESH_MS,
   PROJECTION_IDLE_REFRESH_MS,
-  PLACEHOLDER_REPAINT_MS,
 } from './policy.js';
 
 /**
@@ -196,47 +195,6 @@ export function createFrames({ state: layerState, services, parts, source }) {
   }
 
   /**
-   * Paints a placeholder frame onto the projection canvas when no live feed
-   * image or video is available. Shows camera name, city, and status text
-   * over a dark gradient with tactical border lines.
-   * @param {CanvasRenderingContext2D} ctx - 2D context for the projection canvas.
-   * @param {Object} camera - Camera object for label info.
-   * @param {Object|null} [health=null] - Health state for status message.
-   */
-
-  function paintProjectionPlaceholder(ctx, camera, health = null) {
-    if (!ctx) return;
-    const w = PROJECTION_CANVAS_WIDTH;
-    const h = PROJECTION_CANVAS_HEIGHT;
-    ctx.clearRect(0, 0, w, h);
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, '#05111a');
-    g.addColorStop(1, PROJECTION_MATTE_COLOR);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
-
-    const label = String(camera?.name || 'CCTV');
-    const city = String(camera?.city || 'GLOBAL');
-    const status = String(
-      health?.message || health?.status || camera?.feedType || 'NO FEED',
-    ).toUpperCase();
-
-    ctx.strokeStyle = 'rgba(0, 220, 255, 0.24)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(18, 18, w - 36, h - 36);
-    ctx.strokeRect(36, 36, w - 72, h - 72);
-
-    ctx.fillStyle = 'rgba(170, 242, 255, 0.95)';
-    ctx.font = '600 32px "JetBrains Mono", monospace';
-    ctx.fillText(label.slice(0, 42), 46, 74);
-    ctx.fillStyle = 'rgba(127, 216, 231, 0.8)';
-    ctx.font = '500 24px "JetBrains Mono", monospace';
-    ctx.fillText(city.toUpperCase(), 46, 112);
-    ctx.font = '500 21px "JetBrains Mono", monospace';
-    ctx.fillText(status.slice(0, 58), 46, h - 42);
-  }
-
-  /**
    * Triggers a new frame fetch for an image-mode projection if the refresh
    * interval has elapsed. Active cameras refresh more frequently than idle ones.
    * @param {Object} record - Camera record.
@@ -275,38 +233,12 @@ export function createFrames({ state: layerState, services, parts, source }) {
     const sep = frameUrl.includes('?') ? '&' : '?';
     runtime.imageLoading = true;
     runtime.imageReady = false;
-    runtime.image.src = `${frameUrl}${sep}projTs=${Math.floor(now / refreshMs)}`;
+    runtime.image.src = `${frameUrl}${sep}omitPlaceholder=1&projTs=${Math.floor(now / refreshMs)}`;
   }
 
   /**
-   * Repaints the projection placeholder at most once per PLACEHOLDER_REPAINT_MS.
-   * The projection loop runs at RAF cadence — unthrottled, a pending feed would
-   * re-fill the 1080p canvas (gradient + text) on every single frame.
-   * @param {Object} record - Camera record.
-   * @param {Object} runtime - Projection runtime.
-   * @param {Object|null} health - Health state for status text.
-   */
-
-  function paintPlaceholderThrottled(record, runtime, health) {
-    const now = Date.now();
-    if (
-      now - parts.model.safeNumber(runtime.lastPlaceholderPaintAt, 0) <
-      PLACEHOLDER_REPAINT_MS
-    )
-      return;
-    runtime.lastPlaceholderPaintAt = now;
-    runtime.drawnImageStamp = -1;
-    // The placeholder overwrites the canvas, so the last real frame is no longer
-    // on it. Drop the signature or an identical frame returning after an outage
-    // would be skipped as "unchanged" and leave the placeholder on the plane.
-    runtime.lastFrameSignature = null;
-    runtime.canvasStamp = (runtime.canvasStamp || 0) + 1;
-    paintProjectionPlaceholder(runtime.ctx, record.camera, health);
-  }
-
-  /**
-   * Draws the current frame (video or image) onto the projection canvas.
-   * Falls back to the placeholder if the media source is not yet ready.
+   * Draws a decoded still onto the projection canvas. Pending and failed
+   * refreshes leave any previous frame in place.
    * Image feeds only repaint when a NEW image finished loading (stamp check):
    * re-blitting an unchanged 1080p image every RAF tick is pure waste since
    * texture uploads are already throttled to 1Hz buffer swaps.
@@ -315,39 +247,14 @@ export function createFrames({ state: layerState, services, parts, source }) {
 
   function drawProjectionFrame(record) {
     const runtime = record?.projection;
-    if (!runtime || !runtime.ctx) return;
-
-    const health = layerState._healthById.get(record.camera.id) || null;
-
-    if (runtime.mode === 'video' && runtime.video) {
-      const video = runtime.video;
-      if (
-        video.readyState >= 2 &&
-        video.videoWidth > 0 &&
-        video.videoHeight > 0
-      ) {
-        runtime.ctx.clearRect(
-          0,
-          0,
-          PROJECTION_CANVAS_WIDTH,
-          PROJECTION_CANVAS_HEIGHT,
-        );
-        runtime.ctx.drawImage(
-          video,
-          0,
-          0,
-          PROJECTION_CANVAS_WIDTH,
-          PROJECTION_CANVAS_HEIGHT,
-        );
-        runtime.canvasStamp = (runtime.canvasStamp || 0) + 1;
-        return;
-      }
-      paintPlaceholderThrottled(record, runtime, health);
-      return;
-    }
+    if (!runtime?.ctx || runtime.mode !== 'image') return;
 
     refreshProjectionImage(record);
-    if (runtime.image && runtime.imageReady) {
+    if (
+      runtime.imageReady &&
+      runtime.image?.naturalWidth > 0 &&
+      runtime.image?.naturalHeight > 0
+    ) {
       if (runtime.drawnImageStamp !== runtime.imageStamp) {
         // The frame URL carries a 10s cache-buster tick, so a fresh Image
         // DECODES every PROJECTION_ACTIVE_REFRESH_MS whether or not the provider
@@ -382,15 +289,7 @@ export function createFrames({ state: layerState, services, parts, source }) {
         );
         runtime.ctx.drawImage(runtime.image, fit.x, fit.y, fit.w, fit.h);
         runtime.canvasStamp = (runtime.canvasStamp || 0) + 1;
-        runtime.lastPlaceholderPaintAt = 0;
       }
-      return;
-    }
-    // A refresh is in flight (imageReady=false): keep the last good frame on
-    // the canvas instead of flashing the placeholder. Placeholder only paints
-    // when nothing has ever been drawn for this camera.
-    if (runtime.drawnImageStamp === -1) {
-      paintPlaceholderThrottled(record, runtime, health);
     }
   }
   return {
@@ -400,9 +299,7 @@ export function createFrames({ state: layerState, services, parts, source }) {
     refreshProjectionTextures,
     frameUrlFor,
     mediaUrlFor,
-    paintProjectionPlaceholder,
     refreshProjectionImage,
-    paintPlaceholderThrottled,
     drawProjectionFrame,
   };
 }

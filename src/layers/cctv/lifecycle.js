@@ -167,11 +167,7 @@ export function createLifecycle({
       layerState._viewer.scene.primitives.add(layerState._billboards);
       registerSpriteCollection('cctv', layerState._billboards);
 
-      const sources = await parts.catalog.loadCameraSources();
-      const catalogFromSources = parts.catalog.buildCatalogFromSources(sources);
-      const catalog = catalogFromSources.length
-        ? catalogFromSources
-        : parts.catalog.seedCatalog();
+      const catalog = await parts.catalog.loadCatalog(sourceAbort.signal);
 
       // Viewshed color identity (design §3a): golden-angle hue over the
       // id-SORTED catalog index — deterministic across sessions for a stable

@@ -274,6 +274,12 @@ test('a World frame is fetched once per refresh floor and the cooldown never spe
   assert.notEqual(failed.headers['X-CCTV-Source'], 'upstream-image');
   const retry = await failing.call(frame);
   assert.equal(retry.headers['X-CCTV-Source'], 'synthetic');
+  assert.equal(retry.status, 200, 'the ordinary frame route retains the fallback card');
+  assert.match(retry.body, /CCTV FEED PLACEHOLDER/);
+  const omitted = await failing.call(`${frame}?omitPlaceholder=1`);
+  assert.equal(omitted.status, 204);
+  assert.equal(omitted.headers['X-CCTV-Source'], 'synthetic');
+  assert.equal(omitted.body, undefined);
   assert.equal(
     failing.requests.filter((url) => url === oregonRow().url).length,
     1,
@@ -284,6 +290,40 @@ test('a World frame is fetched once per refresh floor and the cooldown never spe
     1,
     'only the first miss, outside any cooldown, may try Street View',
   );
+});
+
+test('projection omits missing frames but retains stale real snapshots', async (t) => {
+  quiet(t);
+  const root = sourceRoot(t, { world: [oregonRow()] });
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  let healthy = true;
+  const app = mount(t, root, (url) =>
+    url === oregonRow().url && healthy
+      ? new Response(JPEG, { headers: { 'content-type': 'image/jpeg' } })
+      : null,
+  );
+  const projection = '/frame/world-or-764?omitPlaceholder=1';
+  const missing = await app.call('/frame/missing?omitPlaceholder=1');
+  assert.equal(missing.status, 204);
+  assert.equal(missing.headers['X-CCTV-Source'], 'synthetic');
+  assert.equal(missing.body, undefined);
+
+  const first = await app.call(projection);
+  assert.equal(first.status, 200);
+  assert.equal(first.headers['X-CCTV-Source'], 'upstream-image');
+  healthy = false;
+  now += 5 * 60 * 1000;
+  const stale = await app.call(projection);
+  assert.equal(stale.status, 200);
+  assert.equal(stale.headers['X-CCTV-Source'], 'upstream-image');
+  assert.deepEqual(stale.body, first.body);
+  const probe = await app.call('/frame/world-or-764?upstreamOnly=1');
+  assert.equal(probe.status, 204);
+  assert.equal(probe.headers['X-CCTV-Source'], 'stale');
+  assert.equal(probe.body, undefined);
+  const { cameras } = JSON.parse((await app.call('/health')).body);
+  assert.equal(cameras.find(({ id }) => id === 'world-or-764').status, 'degraded');
 });
 
 test('Ottawa frames are signed with the certificate at fetch time only', async (t) => {

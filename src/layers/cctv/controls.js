@@ -21,6 +21,8 @@ export function createControls({ state: layerState, services, parts, source }) {
 
     updateInterval: DEFAULT_UPDATE_INTERVAL_MS,
 
+    findNearestLiveCamera: parts.catalog.findNearestLiveCamera,
+
     /**
      * Applies runtime parameter changes: coverage/projection toggles, auto-hop
      * settings, camera selection, and calibration patches/resets.
