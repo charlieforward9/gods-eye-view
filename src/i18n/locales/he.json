@@ -3692,5 +3692,11 @@
   "Confirm: remove every added entry from Data Layers": "אישור: הסרת כל הפריטים שנוספו משכבות נתונים",
   "Remove every added entry from Data Layers": "הסרת כל הפריטים שנוספו משכבות נתונים",
   "Showing {shown} of {total}": "מוצגים {shown} מתוך {total}",
-  "BROWSE DATA LIBRARY": "עיון בספריית הנתונים"
+  "BROWSE DATA LIBRARY": "עיון בספריית הנתונים",
+  "That control is unavailable for this view.": "פקד זה אינו זמין בתצוגה הזו.",
+  "The selected target has changed.": "המטרה שנבחרה השתנתה.",
+  "The immersive view is no longer active.": "התצוגה הסוחפת כבר אינה פעילה.",
+  "The ridden target has changed.": "המטרה שבתצוגה הזו השתנתה.",
+  "That signal is no longer available.": "האות הזה אינו זמין עוד.",
+  "Unknown immersive control.": "פקד לא מוכר לתצוגה הסוחפת."
 }

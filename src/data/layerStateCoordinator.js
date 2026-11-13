@@ -55,6 +55,7 @@ export class LayerStateCoordinator {
     shareLinkManager,
     {
       storage = safeStorage(),
+      shouldPersistIntent = () => true,
       restoreGate = null,
       onDurableStateChange = null,
       onTrackingRestoreStatus = null,
@@ -73,6 +74,7 @@ export class LayerStateCoordinator {
     this.dataManager = dataManager;
     this.shareLinkManager = shareLinkManager || null;
     this.storage = storage;
+    this.shouldPersistIntent = shouldPersistIntent;
     this.restoreGate = restoreGate;
     this.onDurableStateChange = onDurableStateChange;
     this.onTrackingRestoreStatus = onTrackingRestoreStatus;
@@ -360,6 +362,7 @@ export class LayerStateCoordinator {
   }
 
   _commitExplicit(candidate) {
+    if (!this.shouldPersistIntent()) return;
     this._durableState = this._normalize(candidate);
     const serialized = serializeStoredLayerState(this._durableState);
     try {

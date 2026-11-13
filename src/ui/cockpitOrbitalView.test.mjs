@@ -329,6 +329,37 @@ test('a tracked satellite offers an ORBIT entry in Contacts and the readout', as
   assert.equal($('#tr3b-toggle').hidden, true, 'TR-3B stays aircraft-only');
 });
 
+test('an alternate shell rides the same satellite and restores the camera on exit', async (t) => {
+  const { cockpit, viewer } = fixture(t);
+  const entry = cockpit.getImmersiveState().entry;
+  assert.equal(entry.id, String(ISS.noradId));
+  assert.equal(cockpit.controlImmersive('enter', entry).ok, true);
+  await settle();
+  const state = cockpit.getImmersiveState();
+  assert.equal(state.subjectKind, 'satellite');
+  assert.equal(viewer.scene.screenSpaceCameraController.enableInputs, false);
+  assert.equal(
+    cockpit.controlImmersive('zoomIn', { subject: state.subject }).ok,
+    true,
+  );
+  assert.equal(cockpit.orbital.zoom, 2);
+  assert.equal(
+    cockpit.controlImmersive('lookRight', { subject: state.subject }).ok,
+    true,
+  );
+  assert.equal(cockpit.getImmersiveState().orbital.look.offset, true);
+  assert.equal(
+    cockpit.controlImmersive('nadir', { subject: state.subject }).ok,
+    true,
+  );
+  assert.equal(
+    cockpit.controlImmersive('exit', { subject: state.subject }).ok,
+    true,
+  );
+  assert.equal(viewer.scene.screenSpaceCameraController.enableInputs, true);
+  near(viewer.camera.frustum.fov, SAVED_FOV, 'restored field of view');
+});
+
 test('a shut orbit gate keeps the entry hidden and refuses entry', async (t) => {
   const { $, cockpit } = fixture(t, { orbitAllowed: false });
   cockpit.syncEntry();

@@ -3692,5 +3692,11 @@
   "Confirm: remove every added entry from Data Layers": "Confirmer : retirer du panneau Couches toutes les entrées ajoutées",
   "Remove every added entry from Data Layers": "Retirer du panneau Couches toutes les entrées ajoutées",
   "Showing {shown} of {total}": "Affichées : {shown} sur {total}",
-  "BROWSE DATA LIBRARY": "PARCOURIR LA BIBLIOTHÈQUE DE DONNÉES"
+  "BROWSE DATA LIBRARY": "PARCOURIR LA BIBLIOTHÈQUE DE DONNÉES",
+  "That control is unavailable for this view.": "Cette commande est indisponible dans cette vue.",
+  "The selected target has changed.": "La cible sélectionnée a changé.",
+  "The immersive view is no longer active.": "La vue immersive n’est plus active.",
+  "The ridden target has changed.": "La cible de cette vue a changé.",
+  "That signal is no longer available.": "Ce signal n’est plus disponible.",
+  "Unknown immersive control.": "Commande de vue immersive inconnue."
 }

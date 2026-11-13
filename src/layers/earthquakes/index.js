@@ -27,6 +27,47 @@ export function createEarthquakesLayer({ source, overlayHost } = {}) {
   let _lastUpdate = null;
   let _lastError = null;
   let _enabled = false;
+  // A caller's time range ({fromMs, toMs}); null shows the whole feed.
+  let _window = null;
+  // A caller's magnitude floor; 0 shows every event the feed has.
+  let _minMagnitude = 0;
+  // Which USGS feed loads: the past 'day', or the 'week' for a caller that
+  // looks further back.
+  let _feed = 'day';
+  // Each event's overlay entry with its time and magnitude, so new params
+  // refilter without a fetch.
+  let _overlay = [];
+
+  const inWindow = (time, magnitude) =>
+    (!_minMagnitude || magnitude >= _minMagnitude) &&
+    (!_window ||
+      (Number.isFinite(time) &&
+        time >= _window.fromMs &&
+        time <= _window.toMs));
+
+  const showWindow = () => {
+    if (!_dataSource) return;
+    const now = Cesium.JulianDate.now();
+    for (const entity of _dataSource.entities.values)
+      entity.show = inWindow(
+        entity.properties?.time?.getValue(now),
+        entity.properties?.mag?.getValue(now),
+      );
+    if (!_enabled) return;
+    overlayHost.setEntries(
+      EARTHQUAKE_OVERLAY_SOURCE_ID,
+      selectEarthquakeOverlayCohort(
+        _overlay
+          .filter(({ time, magnitude }) => inWindow(time, magnitude))
+          .map(({ entry }) => entry),
+      ),
+      {
+        cohortLimit: EARTHQUAKE_OVERLAY_COHORT_LIMIT,
+        collisionCapacity: EARTHQUAKE_OVERLAY_COLLISION_CAPACITY,
+        moving: false,
+      },
+    );
+  };
 
   const layer = {
     id: 'earthquakes',
@@ -72,7 +113,10 @@ export function createEarthquakesLayer({ source, overlayHost } = {}) {
       const request = new AbortController();
       _request = request;
       try {
-        const rows = await source.getSnapshot({ signal: request.signal });
+        const rows = await source.getSnapshot({
+          signal: request.signal,
+          feed: _feed,
+        });
         if (request.signal.aborted || _request !== request || !_enabled)
           return false;
 
@@ -125,29 +169,22 @@ export function createEarthquakesLayer({ source, overlayHost } = {}) {
               },
             }),
           );
-          overlayEntries.push(
-            createEarthquakeOverlayEntry({
+          overlayEntries.push({
+            time,
+            magnitude: mag,
+            entry: createEarthquakeOverlayEntry({
               id: String(stableId),
               position,
               magnitude: mag,
               accent: color.toCssColorString(),
             }),
-          );
+          });
         }
 
         _dataSource.entities.removeAll();
         for (const entity of nextEntities) _dataSource.entities.add(entity);
-        if (_enabled) {
-          overlayHost.setEntries(
-            EARTHQUAKE_OVERLAY_SOURCE_ID,
-            selectEarthquakeOverlayCohort(overlayEntries),
-            {
-              cohortLimit: EARTHQUAKE_OVERLAY_COHORT_LIMIT,
-              collisionCapacity: EARTHQUAKE_OVERLAY_COLLISION_CAPACITY,
-              moving: false,
-            },
-          );
-        }
+        _overlay = overlayEntries;
+        showWindow();
 
         _count = count;
         _lastUpdate = Date.now();
@@ -179,6 +216,58 @@ export function createEarthquakesLayer({ source, overlayHost } = {}) {
       _count = 0;
       _lastUpdate = null;
       _lastError = null;
+      _overlay = [];
+    },
+
+    /**
+     * Show only the events inside a time range, `{fromMs, toMs}`, and at or
+     * above `minMagnitude`. A key a call leaves out keeps its value, and
+     * null clears it (the whole feed, every magnitude). `feed: 'week'` loads
+     * the past week from the next update on; 'day' or null the past day.
+     * Analyst records stay unfiltered: a query names its own filters.
+     * @param {{fromMs?: number|null, toMs?: number|null,
+     *   minMagnitude?: number|null, feed?: 'day'|'week'|null}} [params]
+     * @returns {boolean}
+     */
+    setParams(params = {}) {
+      const given = (key) => Object.hasOwn(params, key);
+      const number = (key) =>
+        params[key] === null || params[key] === undefined
+          ? NaN
+          : Number(params[key]);
+      if (given('feed')) {
+        const feed = params.feed === 'week' ? 'week' : 'day';
+        if (feed !== _feed) {
+          _feed = feed;
+          // Keep the prior map records visible during the switch, while
+          // consumers waiting on a refresh require the requested feed.
+          _request?.abort();
+          _lastUpdate = null;
+          _lastError = null;
+        }
+      }
+      if (given('fromMs') || given('toMs')) {
+        const fromMs = number('fromMs');
+        const toMs = number('toMs');
+        _window =
+          Number.isFinite(fromMs) && Number.isFinite(toMs) && fromMs <= toMs
+            ? { fromMs, toMs }
+            : null;
+      }
+      if (given('minMagnitude')) {
+        const minMagnitude = number('minMagnitude');
+        _minMagnitude = Number.isFinite(minMagnitude) ? minMagnitude : 0;
+      }
+      showWindow();
+      return true;
+    },
+
+    getParams() {
+      return {
+        ...(_window ? { ..._window } : {}),
+        ...(_minMagnitude ? { minMagnitude: _minMagnitude } : {}),
+        ...(_feed === 'week' ? { feed: 'week' } : {}),
+      };
     },
 
     /**

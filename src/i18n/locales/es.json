@@ -3692,5 +3692,11 @@
   "500–1,000 m": "500–1000 m",
   "1,000–2,000 m": "1000–2000 m",
   "2,000–3,000 m": "2000–3000 m",
-  "3,000 m and above": "3000 m o más"
+  "3,000 m and above": "3000 m o más",
+  "That control is unavailable for this view.": "Este control no está disponible en esta vista.",
+  "The selected target has changed.": "El objetivo seleccionado ha cambiado.",
+  "The immersive view is no longer active.": "La vista inmersiva ya no está activa.",
+  "The ridden target has changed.": "El objetivo de esta vista ha cambiado.",
+  "That signal is no longer available.": "Esa señal ya no está disponible.",
+  "Unknown immersive control.": "Control de vista inmersiva desconocido."
 }

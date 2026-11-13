@@ -242,6 +242,40 @@ test('a selected vessel offers a BRIDGE entry without Contacts', async (t) => {
   assert.equal($('#tr3b-toggle').hidden, true, 'TR-3B stays aircraft-only');
 });
 
+test('an alternate shell enters and controls the same bridge and releases its camera', async (t) => {
+  const { cockpit, vessels, viewer } = fixture(t);
+  const entry = cockpit.getImmersiveState().entry;
+  assert.equal(entry.kind, 'vessel');
+  assert.equal(cockpit.controlImmersive('enter', entry).ok, true);
+  await settle();
+  const state = cockpit.getImmersiveState();
+  assert.equal(state.subject.id, RECORD.mmsi);
+  assert.equal(state.controls.radar, true);
+  assert.equal(viewer.scene.screenSpaceCameraController.enableInputs, false);
+  assert.equal(
+    cockpit.controlImmersive('lookLeft', { subject: state.subject }).ok,
+    true,
+  );
+  assert.equal(cockpit.getImmersiveState().bridge.look.offset, true);
+  const before = cockpit.radarRangeNm;
+  assert.equal(
+    cockpit.controlImmersive('radarRange', { subject: state.subject }).ok,
+    true,
+  );
+  assert.notEqual(cockpit.radarRangeNm, before);
+  vessels.deselect();
+  assert.equal(cockpit.getImmersiveState().subject, null);
+  assert.equal(
+    cockpit.controlImmersive('lookRight', { subject: state.subject }).code,
+    'STALE_TARGET',
+  );
+  assert.equal(
+    cockpit.controlImmersive('exit', { subject: state.subject }).ok,
+    true,
+  );
+  assert.equal(viewer.scene.screenSpaceCameraController.enableInputs, true);
+});
+
 test('a shut bridge gate keeps the entry hidden', async (t) => {
   const { $, cockpit } = fixture(t, { bridgeAllowed: false });
   cockpit.syncEntry();

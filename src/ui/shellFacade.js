@@ -1106,6 +1106,13 @@ export class ShellFacade {
   controlCockpit(...args) {
     return this._cockpitCoordinator.controlCockpit(...args);
   }
+  /** Subject-aware manual controls, shared by the HUD and alternate shells. */
+  getImmersiveState() {
+    return this._cockpitCoordinator.getImmersiveState();
+  }
+  controlImmersive(action, args) {
+    return this._cockpitCoordinator.controlImmersive(action, args);
+  }
 
   /**
    * Snapshots the full visual state (active style, bloom, sharpen, HUD, detection,
