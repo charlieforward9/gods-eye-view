@@ -217,6 +217,24 @@ export function checkImportDirections(root) {
     }
     visit(start);
   }
+  // The chat view's kernel reaches the globe and the page only through the
+  // ports its host builds (src/standalone/chatViewHost.js), so a node test
+  // or a native shell can drive it: its own modules name no browser global
+  // and import no renderer, Cesium, Vue or Pinia.
+  for (const file of files.filter((name) => name.startsWith('src/chatView/'))) {
+    const info = load(file);
+    if (!info) continue;
+    if (info.browser.length)
+      report(
+        file,
+        `Chat view kernel uses browser globals: ${info.browser.join(', ')}`,
+      );
+    for (const specifier of info.external)
+      if (/^(?:cesium|vue|pinia)(?:\/|$)/.test(specifier))
+        report(file, `Chat view kernel imports ${specifier}`);
+    for (const to of info.edges)
+      if (renderer(to)) report(file, `Chat view kernel imports ${to}`);
+  }
   // Common voice controls may use their DOM view, but never a protocol implementation.
   const voiceSeen = new Set();
   function voice(file) {

@@ -309,6 +309,80 @@ style listeners. Synthetic fixtures cover privacy, acquisition, rendering,
 selection and card placement. Deterministic operation checks run in `npm test`;
 wall-clock budgets run in `npm run test:perf`. All 11 locales are supported.
 
+## Chat view — November 4, 2026
+
+The chat view is a mode of `/`: one composer over the same globe, layers and
+agent as the panels, with sessions of questions and the map as the answer.
+The existing Panels surface opens by default on every screen. The chat panel's
+header can open Chat, and Chat's top-right button goes back to Panels. The choice is
+remembered on the device (`gev:ui-mode:v1`); `?ui=chat` or `?ui=panels` opens
+either and the address then drops it, and the old `/mob` address opens the
+chat view at `/`. It is an exclusive surface (`body.chat-view-mode`, beside
+the cockpit and clean view), so the panels' chrome, the first-run card and the
+phone tab bar step aside while it is open. The Cesium and Google attribution
+stays one full-strength line under the composer.
+
+Mobile uses the same provider facade as Panels. OpenAI and Gemini API-key text
+chat reuse shared HTTP sessions; explicitly selected ChatGPT sign-in uses the shared
+Realtime backend. The Add menu exposes the shared provider/auth choices and failure
+status. The server owns a fixed `map-chat` profile with canonical timeline, nearest
+camera, daily weather, GPS-jamming and satellite-catalog capabilities. Both paths
+execute the existing action runner. Unsupported panel-only actions are refused.
+Supported questions fall back to the bounded rule planner if a provider cannot
+start. A failure after an action returns a partial answer instead of replaying it.
+Cancellation resolves promptly; session/provider handoffs wait for in-flight actions.
+
+Sessions are kept on the device (`gev:chat-view:v1`; sessions saved under the
+old `gev:mob:v1` key carry over once). A session keeps its last 200
+questions, each with the view its answer left; older answers are saved
+without the ids and event times only the newest answer uses. Only the open
+session streams: opening another resets its layers, follow, look and time
+while preserving shared map marks. It puts its last view back or asks a
+seed's question. A watched
+session that is not on screen polls a server tool every 90 seconds (at most
+three at once) instead of keeping a layer on. Switching to the panels hands
+time back to live after outstanding Chat actions settle. Visible layers stay
+on the globe, while Chat's layer changes stay out of saved Panels preferences.
+Chat's Layers menu also opens the same Data Library dialog used in Panels.
+
+The Time panel separates the event filter from the world cursor. Its bounds follow
+the investigation's layers: earthquake retention, loaded FIRMS snapshots, and actual
+registered weather/satellite/launch coverage, including future time. It shows
+source-specific coverage, loading and live-only status. Event filters intersect
+window-source coverage; cursor navigation spans available time sources. Native drag
+previews commit only on completion; keyboard navigation, editable local-time
+endpoints, presets, full-period selection and shared-clock playback are available.
+A scrub preserves the selected event window. Restored unsupported periods clamp
+with notice; entirely out-of-range tool requests are refused. Returning Live clears
+the event period and resumes the shared world clock.
+
+Satellite ORBIT and ship BRIDGE cards call the existing Cockpit controller through
+a cloneable shared facade. Mobile exposes supported zoom, look, nadir, sensor,
+Live Signals and radar controls. The owner revalidates entity identity and entry
+gates and restores the camera on Exit. This does not duplicate the desktop camera
+or selection lifecycle. See [the interview brief](MOBILE-INTERVIEW-BRIEF.md) and
+[architecture diagram](../diagrams/mobile-architecture.svg).
+
+Weather by day comes from `GET /api/weather-daily?latitude&longitude&past&ahead`
+(Open-Meteo daily, up to seven days each way), cached for 30 minutes per 0.1°
+cell, served stale for up to six hours during an outage, rate-limited per
+client, and capped at 256 KB. An answer built on Open-Meteo, from this route
+or the agent's `get_weather`, shows a linked "Weather data by Open-Meteo.com"
+beside its numbers, as the licence asks.
+
+The kernel (`src/chatView/kernel.js`) takes intents through `act(name, …)`
+(`src/chatView/intents.js`) and publishes a frozen snapshot that survives
+`structuredClone` and JSON, so a native shell can drive it over a bridge.
+It reaches the globe and the page only through the ports
+`src/standalone/chatViewHost.js` builds, and `npm run check:boundaries`
+rejects a browser global, Cesium, Vue or an app module in `src/chatView/`.
+It does no per-frame work: layers are sampled once a second and a sample that
+changes nothing visible emits nothing; a snapshot keeps the identity of the
+parts that did not change. The chat view's interface and styles load the first
+time it opens; only `src/ui/styles/chat-view-mode.css` is in the page's
+stylesheet. On a phone the canvas renders at up to twice the CSS pixel
+density. `npm run qa:chat-view` checks it in a browser against a dev server.
+
 ## Prohibited & Restricted Airspace — FAA special-use airspace
 
 The Infrastructure group includes **Prohibited & Restricted Airspace** (`drone-airspace`,

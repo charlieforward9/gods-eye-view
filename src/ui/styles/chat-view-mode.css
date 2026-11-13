@@ -1,0 +1,97 @@
+/* The chat view's hold on the screen, in the page's stylesheet from the
+   start so a phone that opens in it never flashes the panels: its tokens,
+   the attribution line's place, and the panels' chrome stepping aside. The
+   chat view's own surfaces (chat-view.css) load with it. */
+
+body.chat-view-mode {
+  --world-timeline-lift: 0px !important;
+  --cv-void: #04050a;
+  --cv-glass: rgba(10, 13, 21, 0.92);
+  --cv-glass-hi: rgba(12, 15, 24, 0.98);
+  --cv-raise: rgba(232, 234, 237, 0.06);
+  --cv-line: rgba(232, 234, 237, 0.1);
+  --cv-line-strong: rgba(232, 234, 237, 0.2);
+  --cv-ink: #eceef1;
+  --cv-muted: #9aa4b0;
+  --cv-dim: #7d8794;
+  --cv-cyan: #00d4ff;
+  --cv-cyan-dim: rgba(0, 212, 255, 0.14);
+  --cv-gold: #f1cd84;
+  --cv-gold-dim: rgba(241, 205, 132, 0.14);
+  --cv-red: #ff4d5e;
+  --cv-amber: #ffb800;
+  --cv-green: #5fe3a5;
+  --cv-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --cv-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+  --cv-top: max(12px, env(safe-area-inset-top));
+  /* The attribution line sits under everything; the shell stays above it. */
+  --cv-credit-bottom: max(4px, env(safe-area-inset-bottom));
+  --cv-credit-space: 26px;
+  --cv-bottom: calc(var(--cv-credit-bottom) + var(--cv-credit-space));
+  --cv-column: min(100vw - 24px, 620px);
+  background: var(--cv-void);
+  color: var(--cv-ink);
+  font-family: var(--cv-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Attribution (Google's and Cesium's terms) is one full-strength line under
+   the composer, where a chat app keeps its footnote. Nothing in the shell
+   reaches below --cv-bottom, and the line stacks above the shell's scrims,
+   so it is never covered (chatView.test.mjs pins this, as the phone shell's
+   own test does for its layout). The doubled id outranks the panels' and the
+   phone shell's credit placement. */
+body.chat-view-mode #cesium-credits#cesium-credits {
+  top: auto !important;
+  right: 0 !important;
+  bottom: var(--cv-credit-bottom) !important;
+  left: 0 !important;
+  width: max-content !important;
+  max-width: none !important;
+  margin: 0 auto;
+  white-space: nowrap;
+  scale: 0.8;
+  transform-origin: center bottom;
+  z-index: 96;
+  pointer-events: none;
+}
+body.chat-view-mode #cesium-credits#cesium-credits a {
+  pointer-events: auto;
+}
+body.chat-view-mode #cesium-credits#cesium-credits .cesium-widget-credits {
+  position: static;
+}
+
+/* The chat view owns the screen (an exclusive surface, like the cockpit):
+   the panels' chrome steps aside, and the globe, its overlays and the marks
+   the layers draw on it stay. Switching back shows the panels as they were. */
+body.chat-view-mode .gev-view:not([data-gev-view='scene-chrome']),
+body.chat-view-mode #title-bar,
+body.chat-view-mode #style-indicator,
+body.chat-view-mode #top-center-actions,
+body.chat-view-mode #world-timeline,
+body.chat-view-mode #global-loading-status,
+body.chat-view-mode #traffic-sync-chip,
+body.chat-view-mode #cctv-sync-chip,
+body.chat-view-mode #toast,
+body.chat-view-mode #safe-frame-overlay,
+body.chat-view-mode #orbit-indicator,
+body.chat-view-mode #mobile-tab-bar,
+body.chat-view-mode #mobile-sheet-backdrop,
+body.chat-view-mode #key-setup-chip,
+body.chat-view-mode #key-setup {
+  display: none !important;
+}
+
+/* Above the attribution (z 90), which the shell's own layout keeps clear,
+   so an open drawer covers it like any sheet; below the loading screen. */
+#cv-app {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  pointer-events: none;
+}
+
+body.chat-view-mode #loading-screen {
+  background: var(--cv-void);
+}

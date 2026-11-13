@@ -134,6 +134,24 @@ for (const [name, files, pattern] of [
     /Computed/,
   ],
   [
+    'chat view kernel touches the page',
+    { 'src/chatView/demo.js': 'export const at = () => document.title;' },
+    /Chat view kernel uses browser globals: document/,
+  ],
+  [
+    'chat view kernel imports Cesium',
+    { 'src/chatView/demo.js': "import * as Cesium from 'cesium';" },
+    /Chat view kernel imports cesium/,
+  ],
+  [
+    'chat view kernel imports the app',
+    {
+      'src/chatView/demo.js': "import '../app/embed.js';",
+      'src/app/embed.js': '',
+    },
+    /Chat view kernel imports src\/app\/embed.js/,
+  ],
+  [
     'browser imports test helper',
     {
       'src/app/demo.js': "import '../testSupport/helper.js';",

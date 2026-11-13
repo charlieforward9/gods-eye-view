@@ -263,8 +263,10 @@ function ownBoxEntries() {
       if (!ELEMENT_KEYS.some((key) => compound.includes(key))) continue;
       if (compound.includes('::')) continue; // a pseudo-element is its own box
       // The phone shell is its own layout; mobileShell.test.mjs pins its
-      // attribution clearance.
+      // attribution clearance. So is the chat view, which hides the dock,
+      // rails and trays; chatView.test.mjs pins its clearance.
       if (part.startsWith('body.mobile-shell')) continue;
+      if (part.startsWith('body.chat-view-mode')) continue;
       entries.push({ rule, part });
     }
   }

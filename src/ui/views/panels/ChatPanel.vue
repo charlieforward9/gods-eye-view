@@ -3,6 +3,7 @@ import { nextTick, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { t } from '../../../i18n/index.js';
 import { useVoiceStore } from '../../stores/voice.js';
+import { useChatViewStore } from '../../stores/chatView.js';
 import { ASSISTANT_NAME } from '../../../voice/control.js';
 import PanelLayoutButtons from './PanelLayoutButtons.vue';
 
@@ -13,6 +14,8 @@ const props = defineProps({ view: { type: Object, required: true } });
 const store = useVoiceStore();
 const { controls, chat: messages } = storeToRefs(store);
 const emit = (name, ...args) => controls.value?.emit(name, ...args);
+// The chat view: this chat full screen, with sessions and the map as the answer.
+const chatView = useChatViewStore();
 const list = ref(null);
 const layerSelect = ref(null);
 const layerChoice = ref('');
@@ -66,6 +69,7 @@ const quickPrompts = () => [t('Fly to Tokyo'), t('Show live flights')];
     <header class="gev-chat-header">
       <div><strong>{{ t('GEV CHAT') }}</strong><p>{{ t('Ask about the map. Tell it where to go.') }}</p></div>
       <div id="gev-chat-header-actions">
+        <button v-if="chatView.switchable" id="gev-chat-view-button" type="button" :aria-label="t('Open the chat view')" :title="t('Open the chat view')" @click="chatView.switchTo('chat')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M4 15v5h5M20 15v5h-5"></path></svg></button>
         <PanelLayoutButtons :docked="props.view.layout.docked" :minimized="props.view.chat.minimized" @dock="emit('layout-dock')" @minimize="emit('chat-minimize')" />
         <button v-if="props.view.panel" id="gev-voice-settings-button" class="gev-voice-settings-button" type="button" :aria-label="t('Settings')" :title="t('Settings')" aria-controls="gev-voice-panel" :aria-expanded="String(props.view.voicePanel.settingsExpanded)" @click="emit('settings-button')"><span class="material-symbols-outlined gev-voice-settings-icon" aria-hidden="true">settings</span></button>
         <button id="gev-chat-close" type="button" :aria-label="t('Close chat')" @click="emit('chat-close')">×</button>

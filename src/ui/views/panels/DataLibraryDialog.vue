@@ -39,7 +39,11 @@ watch(
     // has moved it somewhere else meanwhile.
     const active = document.activeElement;
     if (wasOpen && (!active || active === document.body || dialog.contains(active)))
-      document.getElementById('data-library-browse')?.focus();
+      document
+        .querySelector(
+          'body.chat-view-mode [data-library-launcher], body:not(.chat-view-mode) #data-library-browse',
+        )
+        ?.focus();
   },
   { immediate: true },
 );
