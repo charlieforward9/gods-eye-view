@@ -42,6 +42,8 @@ export function createTextChat({
   radioLayer = null,
   dataManager = null,
   timeoutMs = 90000,
+  toolProfile,
+  initialHistory = () => [],
 }) {
   const protocol = textProtocols[provider];
   const sessionUsage = emptyTextUsage();
@@ -134,12 +136,19 @@ export function createTextChat({
     turnUsage = usage;
     // A failed turn ends only itself: history, subscriptions and the session
     // stay, so the next message continues the same conversation.
-    const fail = (detail) => {
+    const fail = (detail, error) => {
       if (!active || turn !== owner || signal?.aborted) return;
       if (partial?.owner === owner) partial.keep();
       turn = null;
       owner.abort();
-      emit({ type: 'state', state: 'error', detail, usage: { ...usage } });
+      emit({
+        type: 'state',
+        state: 'error',
+        detail,
+        usage: { ...usage },
+        ...(error?.code && { code: error.code }),
+        ...(error?.status && { status: error.status }),
+      });
     };
     // Each upstream request and each map action gets its own deadline, so a
     // long multi-step turn is not cut off by the time its actions took.
@@ -198,7 +207,10 @@ export function createTextChat({
       },
     };
     const encode = () =>
-      JSON.stringify(protocol.request([...past, ...contents]));
+      JSON.stringify({
+        ...protocol.request([...past, ...contents]),
+        ...(toolProfile && { toolProfile }),
+      });
     let blocked = false;
     let resetFailed = false;
     let totalCalls = 0;
@@ -458,6 +470,7 @@ export function createTextChat({
                                 'That request needed too many steps. Try a simpler request.',
                               )
                           : t('Could not connect. Try again.'),
+        error,
       );
     } finally {
       recordUsage(null);
@@ -469,6 +482,14 @@ export function createTextChat({
   return {
     start() {
       if (signal?.aborted) return;
+      if (!active && !history.length)
+        history = initialHistory()
+          .slice(-4)
+          .flatMap(({ q, say }) =>
+            typeof q === 'string' && typeof say === 'string'
+              ? [protocol.user(q), protocol.note(say)]
+              : [],
+          );
       active = true;
       const cancelRadioTurn = () => {
         if (radioPending && radioPending === turn) cancelTurn();

@@ -534,6 +534,7 @@
       "server/providers/regional/news.js",
       "server/providers/regional/place.js",
       "server/providers/regional/query.js",
+      "server/providers/regional/weather-daily.js",
       "server/providers/regional/weather-effects.js",
       "server/providers/regional/weather.js",
       "src/data/regionalModel.js",
@@ -627,7 +628,9 @@
       "src/voice/layerManifest.js",
       "server/providers/openai/toolDescriptions.js",
       "src/sources/rateLimit.js",
-      "server/providers/overpass/constants.js"
+      "server/providers/overpass/constants.js",
+      "server/providers/common/mapChatProfile.js",
+      "src/voice/mapChatTools.js"
     ],
     "external": []
   },
@@ -2542,7 +2545,10 @@
       "src/ui/stores/voice.js",
       "src/ui/vueRuntime.js",
       "src/ui/stores/pointerReticle.js",
-      "src/ui/i18n.js"
+      "src/ui/i18n.js",
+      "src/voice/textAgent.js",
+      "src/voice/realtimeTextAgent.js",
+      "src/voice/mapChatTools.js"
     ],
     "external": ["vue", "pinia", "vue-i18n"]
   },
@@ -3812,6 +3818,9 @@
       "src/ui/stores/dataLibrary.js",
       "src/data/openVesselPhoto.js",
       "src/layers/vessels/photos.js",
+      "src/voice/textAgent.js",
+      "src/voice/realtimeTextAgent.js",
+      "src/voice/mapChatTools.js",
       "src/ui/immersiveControls.js"
     ],
     "external": [

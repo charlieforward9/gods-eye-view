@@ -3,6 +3,7 @@ export {
   regionalBriefHasAnySource,
 } from './regional/briefing.js';
 export { weatherEffectsProxy } from './regional/weather-effects.js';
+export { weatherDailyProxy } from './regional/weather-daily.js';
 export { validRegionalPoint } from './regional/query.js';
 export {
   createRegionalPlaceProvider,

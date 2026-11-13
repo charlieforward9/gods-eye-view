@@ -1,4 +1,9 @@
 import { supportedVoiceProviders } from './providerCapabilities.js';
+import { createProviderTextAgent } from './textAgent.js';
+import {
+  readStoredCloudVoiceAuthMode,
+  writeStoredCloudVoiceAuthMode,
+} from './cloudVoiceAuth.js';
 
 const STORAGE_KEY = 'gev.voice.provider';
 
@@ -29,6 +34,7 @@ export function createProviderCommands(options, { bind, factories, storage }) {
   const lifetime = new AbortController();
   let mountGeneration = 0;
   let voiceEnabled = false;
+  const providerListeners = new Set();
   const stored = () => {
     try {
       return storage ?? globalThis.localStorage;
@@ -82,6 +88,13 @@ export function createProviderCommands(options, { bind, factories, storage }) {
     } catch {
       /* Storage is optional. */
     }
+    for (const listener of [...providerListeners]) {
+      try {
+        listener({ provider, supportedProviders });
+      } catch {
+        /* A host observer cannot prevent the provider handoff. */
+      }
+    }
     mount(presentation);
     if (resume && !disposed && provider === next)
       void current.session.start({
@@ -116,6 +129,14 @@ export function createProviderCommands(options, { bind, factories, storage }) {
     get provider() {
       return provider;
     },
+    get authMode() {
+      return provider === 'openai'
+        ? readStoredCloudVoiceAuthMode(stored())
+        : 'api-key';
+    },
+    get authModes() {
+      return provider === 'openai' ? ['api-key', 'oauth'] : ['api-key'];
+    },
     get session() {
       return current?.session;
     },
@@ -135,6 +156,44 @@ export function createProviderCommands(options, { bind, factories, storage }) {
     sendTextCommand,
     sendText: sendTextCommand,
     notifyMapEvent: (event) => !disposed && current.session.sendMapEvent(event),
+    selectProvider,
+    selectAuthMode(next) {
+      if (
+        disposed ||
+        provider !== 'openai' ||
+        !['api-key', 'oauth'].includes(next) ||
+        api.authMode === next
+      )
+        return false;
+      writeStoredCloudVoiceAuthMode(next, stored());
+      for (const listener of [...providerListeners]) {
+        try {
+          listener({ provider, supportedProviders, authMode: next });
+        } catch {
+          /* A host observer cannot prevent the authentication handoff. */
+        }
+      }
+      return true;
+    },
+    subscribeProvider(listener) {
+      if (disposed) return () => {};
+      providerListeners.add(listener);
+      return () => providerListeners.delete(listener);
+    },
+    createTextAgent(settings) {
+      if (disposed)
+        throw new Error('The application provider has been disposed');
+      return createProviderTextAgent({
+        ...settings,
+        selection: api,
+        storage: stored(),
+        signal: lifetime.signal,
+        ...(options.fetchImpl && { fetchImpl: options.fetchImpl }),
+        ...(options.textAgentFactories && {
+          factories: options.textAgentFactories,
+        }),
+      });
+    },
   };
   // Existing diagnostic and controller accessors continue to reflect the active provider.
   const facade = new Proxy(api, {
