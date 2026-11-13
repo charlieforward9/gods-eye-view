@@ -197,7 +197,10 @@ export function createTextChatHandler({
       );
       lifetime.signal.throwIfAborted();
       usage = parseUsage(provider, data);
-      const result = parse(data);
+      // Validation uses the same request-local, server-owned tool profile that
+      // prepared this request. Concurrent clients cannot change one another's
+      // offered tools while an upstream response is pending.
+      const result = parse(data, { input, prepared });
       if (!result || JSON.stringify(result).includes(apiKey))
         return reply(502, { error: FAILURE, usage });
       reply(200, { ...result, usage });

@@ -5,6 +5,11 @@ import { invalidCalls } from '../common/textTools.js';
 import { textInstructions } from '../common/textInstructions.js';
 import { GEV_REALTIME_TOOLS, offeredTools } from './tools.js';
 import { resolveOverpassUpstreams } from '../overpass/constants.js';
+import {
+  validTextToolProfile,
+  textProfileTools,
+  textProfileInstructions,
+} from '../common/mapChatProfile.js';
 
 const object = (value) =>
   value && typeof value === 'object' && !Array.isArray(value);
@@ -126,12 +131,18 @@ export function createOpenAiChatHandler({
         return { errorStatus: 503 };
       if (
         !object(input) ||
-        !keys(input, ['messages']) ||
+        !keys(input, ['messages', 'toolProfile']) ||
+        !validTextToolProfile(input.toolProfile) ||
         !validMessages(input.messages)
       )
         return null;
       const overpass = overpassConfigured();
+      const validationTools = textProfileTools(tools, {
+        overpass,
+        profile: input.toolProfile,
+      });
       return {
+        validationTools,
         endpoint: 'https://api.openai.com/v1/chat/completions',
         headers: (key) => ({ Authorization: `Bearer ${key}` }),
         body: {
@@ -143,25 +154,26 @@ export function createOpenAiChatHandler({
           messages: [
             {
               role: 'system',
-              content: textInstructions(annotationGuidance, { overpass }),
+              content: textProfileInstructions(
+                textInstructions(annotationGuidance, { overpass }),
+                input.toolProfile,
+              ),
             },
             ...input.messages,
           ],
-          tools: offeredTools(tools, { overpass }).map(
-            ({ name, description, parameters }) => ({
-              type: 'function',
-              function: {
-                name,
-                description,
-                parameters: chatSchema(parameters),
-                strict: false,
-              },
-            }),
-          ),
+          tools: validationTools.map(({ name, description, parameters }) => ({
+            type: 'function',
+            function: {
+              name,
+              description,
+              parameters: chatSchema(parameters),
+              strict: false,
+            },
+          })),
         },
       };
     },
-    parse(data) {
+    parse(data, { prepared } = {}) {
       const choice = data?.choices?.[0];
       const raw = choice?.message;
       if (!raw) return null;
@@ -190,7 +202,8 @@ export function createOpenAiChatHandler({
         finishReason: choice.finish_reason,
         invalidCalls: invalidCalls(
           calls,
-          offeredTools(tools, { overpass: overpassConfigured() }),
+          prepared?.validationTools ??
+            offeredTools(tools, { overpass: overpassConfigured() }),
         ),
       };
     },

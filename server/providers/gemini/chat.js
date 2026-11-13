@@ -4,6 +4,11 @@ import { textInstructions } from '../common/textInstructions.js';
 import { GEV_REALTIME_TOOLS, offeredTools } from '../openai/tools.js';
 import { resolveOverpassUpstreams } from '../overpass/constants.js';
 import { normalizeGeminiModel } from './config.js';
+import {
+  validTextToolProfile,
+  textProfileTools,
+  textProfileInstructions,
+} from '../common/mapChatProfile.js';
 
 // The Gemini token route's throttle default (GEV_RATELIMIT_GEMINI_PER_MIN).
 export const GEMINI_DEFAULT_PER_MIN = 30;
@@ -101,25 +106,36 @@ export function createGeminiChatHandler({
       if (!model || /live|audio|tts/i.test(model)) return { errorStatus: 503 };
       if (
         !object(input) ||
-        !keys(input, ['contents']) ||
+        !keys(input, ['contents', 'toolProfile']) ||
+        !validTextToolProfile(input.toolProfile) ||
         !validChatContents(input.contents, null)
       )
         return null;
       if (!pairedContents(input.contents)) return null;
       const overpass = overpassConfigured();
+      const validationTools = textProfileTools(tools, {
+        overpass,
+        profile: input.toolProfile,
+      });
       return {
+        validationTools,
         endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         headers: (key) => ({ 'x-goog-api-key': key }),
         body: {
           contents: input.contents,
           systemInstruction: {
             parts: [
-              { text: textInstructions(annotationGuidance, { overpass }) },
+              {
+                text: textProfileInstructions(
+                  textInstructions(annotationGuidance, { overpass }),
+                  input.toolProfile,
+                ),
+              },
             ],
           },
           tools: [
             {
-              functionDeclarations: offeredTools(tools, { overpass }).map(
+              functionDeclarations: validationTools.map(
                 ({ name, description, parameters }) => ({
                   name,
                   description,
@@ -136,7 +152,7 @@ export function createGeminiChatHandler({
         },
       };
     },
-    parse(data) {
+    parse(data, { prepared } = {}) {
       const candidate = data?.candidates?.[0];
       const content = candidate?.content;
       if (
@@ -153,7 +169,8 @@ export function createGeminiChatHandler({
         finishReason: candidate.finishReason,
         invalidCalls: invalidCalls(
           calls,
-          offeredTools(tools, { overpass: overpassConfigured() }),
+          prepared?.validationTools ??
+            offeredTools(tools, { overpass: overpassConfigured() }),
         ),
       };
     },

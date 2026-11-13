@@ -10,6 +10,7 @@ import { militaryInstallationsProxy } from './military-installations.js';
 import { regionalBriefProxy } from './regional/briefing.js';
 import { geocodeProxy, NOMINATIM_CACHE_DIR } from './regional/place.js';
 import { weatherEffectsProxy } from './regional/weather-effects.js';
+import { weatherDailyProxy } from './regional/weather-daily.js';
 import { cctvProxy } from './cctv.js';
 import { defaultSourceRoot } from './common/source-root.js';
 import { radioBrowserProxy } from './radio.js';
@@ -68,6 +69,7 @@ function localProviderPlugins({
     regionalBriefProxy(),
     geocodeProxy({ storageDir: nominatimStorageDir }),
     weatherEffectsProxy(),
+    weatherDailyProxy(),
     cctvProxy({ sourceRoot: defaultSourceRoot }),
     radioBrowserProxy(),
     gbfsProxy(),

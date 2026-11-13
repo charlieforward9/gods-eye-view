@@ -11,10 +11,66 @@ import { createGevActionRunner } from './gevActions.js';
 import { createPointerTracker } from './pointerContext.js';
 import { createReferentRegistry } from './referents.js';
 import { createTestVoiceUi } from '../testSupport/voiceUi.mjs';
+import { CLOUD_VOICE_AUTH_STORAGE_KEY } from './cloudVoiceAuth.js';
 import { setLocale, t } from '../i18n/index.js';
 
 const PROVIDER_KEY = 'gev.voice.provider';
 const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+test('the public provider facade supplies one text-agent contract and shared authentication choices', async (t) => {
+  const prior = globalThis.window;
+  globalThis.window = new EventTarget();
+  const entries = new Map();
+  const storage = {
+    getItem: (key) => entries.get(key) ?? null,
+    setItem: (key, value) => entries.set(key, value),
+  };
+  const retired = [];
+  const make = (kind) => (options) => ({
+    ask: async () => ({ say: `${options.provider}:${kind}`, steps: [] }),
+    cancel() {},
+    close: () => retired.push(`${options.provider}:${kind}`),
+    reset() {},
+  });
+  const api = createProviderCommands(
+    {
+      runner: async () => ({ ok: true }),
+      supportedProviders: ['openai', 'gemini'],
+      textAgentFactories: { http: make('http'), realtime: make('oauth') },
+    },
+    {
+      storage,
+      factories: { openai() {}, gemini() {} },
+      bind: () => ({
+        session: {
+          adapter: { getStartOptions: () => ({}) },
+          isActive: () => false,
+          destroy() {},
+          stop() {},
+        },
+      }),
+    },
+  );
+  t.after(() => {
+    api.destroy();
+    globalThis.window = prior;
+  });
+  const agent = api.createTextAgent({ run: async () => ({ ok: true }) });
+  assert.equal((await agent.ask('One')).say, 'openai:http');
+  assert.deepEqual(api.authModes, ['api-key', 'oauth']);
+  assert.equal(api.selectAuthMode('oauth'), true);
+  assert.equal(entries.get(CLOUD_VOICE_AUTH_STORAGE_KEY), 'oauth');
+  assert.equal(agent.state().authMode, 'oauth');
+  assert.equal((await agent.ask('Two')).say, 'openai:oauth');
+  assert.equal(api.selectProvider('gemini'), true);
+  assert.deepEqual(api.authModes, ['api-key']);
+  assert.equal(api.authMode, 'api-key');
+  assert.equal(api.selectAuthMode('oauth'), false);
+  assert.equal((await agent.ask('Three')).say, 'gemini:http');
+  assert.deepEqual(retired, ['openai:http', 'openai:oauth']);
+  assert.equal(api.selectProvider('unavailable-provider'), false);
+  agent.close();
+});
 
 function deferred() {
   let resolve;

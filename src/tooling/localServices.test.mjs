@@ -15,6 +15,7 @@ import { overpassProxy } from 'gods-eye-view/server/providers/overpass';
 import { militaryInstallationsProxy } from 'gods-eye-view/server/providers/military-installations';
 import {
   regionalBriefProxy,
+  weatherDailyProxy,
   weatherEffectsProxy,
 } from 'gods-eye-view/server/providers/regional';
 import { openAiRealtimeProxy } from 'gods-eye-view/server/providers/openai';
@@ -104,6 +105,7 @@ test('standalone service guards run in development and preview without upstream 
       [militaryInstallationsProxy, '/api/military-installations'],
       [regionalBriefProxy, '/api/regional-brief'],
       [weatherEffectsProxy, '/api/weather-effects'],
+      [weatherDailyProxy, '/api/weather-daily'],
     ]) {
       const routes = install(factory(), preview);
       assert.equal(
@@ -158,6 +160,64 @@ test('weather-only requests share upstream work and retain fresh and stale respo
   now += 6 * 60_000;
   assert.equal(
     (await request(handler, query)).headers['x-weather-effects'],
+    'STALE',
+  );
+});
+
+test('daily weather asks Open-Meteo for past and coming days in the place’s own zone, and caches the answer', async (t) => {
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const asked = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    const target = new URL(url);
+    asked.push(target);
+    assert.equal(target.hostname, 'api.open-meteo.com');
+    if (asked.length > 1) throw Error('offline');
+    return Response.json({
+      timezone: 'America/New_York',
+      daily: {
+        time: ['2026-11-02', '2026-11-03', '2026-11-04'],
+        weather_code: [65, 82, 3],
+        temperature_2m_max: [27, 28.2, 27.7],
+        temperature_2m_min: [22.3, 23.7, 23.1],
+        precipitation_sum: [43.2, 37.5, 0],
+        precipitation_hours: [6, 2, 0],
+        wind_speed_10m_max: [27.2, 23.2, 15.6],
+        wind_gusts_10m_max: [50.8, 47.9, 25.9],
+      },
+    });
+  });
+  const handler = install(weatherDailyProxy()).get('/api/weather-daily');
+  assert.equal(
+    (await request(handler, { url: '/?latitude=95&longitude=0' })).status,
+    400,
+  );
+  const query = { url: '/?latitude=26.65&longitude=-80.27&past=1&ahead=1' };
+  const first = await request(handler, query);
+  assert.equal(first.status, 200);
+  assert.equal(asked[0].searchParams.get('past_days'), '1');
+  assert.equal(asked[0].searchParams.get('forecast_days'), '2');
+  assert.equal(asked[0].searchParams.get('timezone'), 'auto');
+  const payload = JSON.parse(first.body);
+  assert.equal(payload.today, '2026-11-03');
+  assert.equal(payload.timezone, 'America/New_York');
+  assert.deepEqual(payload.days[0], {
+    date: '2026-11-02',
+    weatherCode: 65,
+    highC: 27,
+    lowC: 22.3,
+    precipitationMm: 43.2,
+    precipitationHours: 6,
+    windMaxKph: 27.2,
+    gustMaxKph: 50.8,
+  });
+  assert.equal(
+    (await request(handler, query)).headers['x-weather-daily'],
+    'HIT',
+  );
+  now += 31 * 60_000;
+  assert.equal(
+    (await request(handler, query)).headers['x-weather-daily'],
     'STALE',
   );
 });

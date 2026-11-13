@@ -41,7 +41,10 @@ export function createRealtimeBackend({
           typeof data?.error === 'string' ? data.error : data?.error?.message;
         throw Object.assign(
           new Error(reason || `Realtime token failed: HTTP ${response.status}`),
-          typeof data?.code === 'string' ? { code: data.code } : {},
+          {
+            status: response.status,
+            ...(typeof data?.code === 'string' ? { code: data.code } : {}),
+          },
         );
       }
       const token =
@@ -68,6 +71,9 @@ export function createRealtimeBackend({
         transcribeModel:
           response.headers?.get?.('X-GEV-Voice-Transcribe-Model') || null,
         expiresAt,
+        ...(Array.isArray(data?.session?.tools) && {
+          tools: data.session.tools,
+        }),
       };
     },
     async negotiate({ offerSdp, credential, signal }) {

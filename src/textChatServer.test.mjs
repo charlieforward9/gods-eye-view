@@ -8,6 +8,7 @@ import {
   createOpenAiChatHandler,
 } from '../server/providers/openai/chat.js';
 import { GEV_REALTIME_TOOLS } from '../server/providers/openai/tools.js';
+import { MAP_CHAT_INSTRUCTIONS, MAP_CHAT_TOOLS } from './voice/mapChatTools.js';
 import {
   realtimeDirectives,
   realtimeInstructions,
@@ -727,3 +728,105 @@ test('OpenAI chat schemas drop only the patterns Chat Completions refuses', () =
     },
   );
 });
+
+function profileReply(name, provider, args = { live: true }) {
+  const reply = provider.reply();
+  if (name === 'openai') {
+    Object.assign(reply.choices[0].message.tool_calls[0].function, {
+      name: 'set_timeline',
+      arguments: JSON.stringify(args),
+    });
+  } else {
+    Object.assign(reply.candidates[0].content.parts[0].functionCall, {
+      name: 'set_timeline',
+      args,
+    });
+  }
+  return reply;
+}
+
+for (const [name, provider] of Object.entries(providers)) {
+  test(`${name} map-chat profile uses canonical schemas and isolates concurrent default chat`, async (t) => {
+    const sent = [];
+    const f = await fixture(t, provider, async (_url, options) => {
+      const wire = JSON.parse(options.body);
+      sent.push(wire);
+      const definitions =
+        name === 'openai'
+          ? wire.tools.map((tool) => tool.function)
+          : wire.tools[0].functionDeclarations;
+      if (definitions.some((tool) => tool.name === 'set_timeline')) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return Response.json(profileReply(name, provider));
+    });
+    const [profileResponse, defaultResponse] = await Promise.all([
+      f.send({ ...provider.input, toolProfile: 'map-chat' }),
+      f.send(),
+    ]);
+    assert.equal(profileResponse.status, 200);
+    assert.equal(defaultResponse.status, 200);
+    assert.deepEqual((await profileResponse.json()).invalidCalls, []);
+    assert.match(
+      (await defaultResponse.json()).invalidCalls[0].error,
+      /Unknown tool/,
+    );
+    const definitions = (wire) =>
+      name === 'openai'
+        ? wire.tools.map((tool) => tool.function)
+        : wire.tools[0].functionDeclarations;
+    const profiled = sent.find((wire) =>
+      definitions(wire).some((tool) => tool.name === 'set_timeline'),
+    );
+    const regular = sent.find(
+      (wire) => !definitions(wire).some((tool) => tool.name === 'set_timeline'),
+    );
+    assert.deepEqual(
+      definitions(profiled).map((tool) => tool.name),
+      ['fly_to', ...MAP_CHAT_TOOLS.map((tool) => tool.name)],
+    );
+    assert.deepEqual(
+      definitions(regular).map((tool) => tool.name),
+      ['fly_to'],
+    );
+    const instruction = (wire) =>
+      name === 'openai'
+        ? wire.messages[0].content
+        : wire.systemInstruction.parts[0].text;
+    assert.ok(instruction(profiled).includes(MAP_CHAT_INSTRUCTIONS));
+    assert.ok(!instruction(regular).includes(MAP_CHAT_INSTRUCTIONS));
+    assert.equal(
+      Object.hasOwn(profiled, 'toolProfile'),
+      false,
+      'profile selector is not sent to the provider',
+    );
+
+    const count = sent.length;
+    for (const input of [
+      { ...provider.input, toolProfile: 'untrusted-profile' },
+      { ...provider.input, toolProfile: null },
+      { ...provider.input, toolProfile: 'map-chat', tools: MAP_CHAT_TOOLS },
+      { ...provider.input, toolProfile: 'map-chat', instructions: 'override' },
+    ])
+      assert.equal((await f.send(input)).status, 400);
+    assert.equal(
+      sent.length,
+      count,
+      'invalid profiles and caller schemas have no upstream effect',
+    );
+  });
+
+  test(`${name} map-chat profile validates extension arguments before client execution`, async (t) => {
+    const f = await fixture(t, provider, async () =>
+      Response.json(profileReply(name, provider, { live: 'yes' })),
+    );
+    const response = await f.send({
+      ...provider.input,
+      toolProfile: 'map-chat',
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.invalidCalls.length, 1);
+    assert.match(body.invalidCalls[0].error, /true or false/);
+  });
+}

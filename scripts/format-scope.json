@@ -171,6 +171,7 @@
   "src/nominatimGeocode.test.mjs",
   "src/tooling/nominatimSearchRoute.test.mjs",
   "server/providers/regional/query.js",
+  "server/providers/regional/weather-daily.js",
   "server/providers/regional/weather-effects.js",
   "server/providers/regional/weather.js",
   "server/standalone/key-setup.js",
@@ -1433,6 +1434,11 @@
   "src/data/fleetModelInstances.test.mjs",
   "src/testSupport/fleetGlb.mjs",
   "scripts/measure-fleet-trail-anchors.mjs",
+  "server/providers/common/mapChatProfile.js",
   "src/ui/immersiveControls.js",
-  "src/ui/immersiveControls.test.mjs"
+  "src/ui/immersiveControls.test.mjs",
+  "src/voice/mapChatTools.js",
+  "src/voice/realtimeTextAgent.js",
+  "src/voice/textAgent.js",
+  "src/voice/textAgent.test.mjs"
 ]
