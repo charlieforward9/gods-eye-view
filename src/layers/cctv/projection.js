@@ -102,8 +102,15 @@ export function createProjection({
 
   function setPlaneVisible(runtime, visible) {
     if (!runtime) return;
-    if (runtime.planeEntity) runtime.planeEntity.show = !!visible;
-    if (visible && runtime.overlayEntry && runtime.cameraId) {
+    const frameReady = runtime.video
+      ? runtime.video.readyState >= 2 &&
+        runtime.video.videoWidth > 0 &&
+        runtime.video.videoHeight > 0
+      : runtime.drawnImageStamp >= 0;
+    const show = Boolean(visible && frameReady);
+    if (runtime.planeEntity && runtime.planeEntity.show !== show)
+      runtime.planeEntity.show = show;
+    if (show && runtime.overlayEntry && runtime.cameraId) {
       if (layerState._projectionOverlayOwnerId !== runtime.cameraId) {
         layerState._cctvOverlayHost.setEntries(
           CCTV_PROJECTION_OVERLAY_SOURCE_ID,
@@ -205,16 +212,13 @@ export function createProjection({
       lastFrameSignature: null,
       signatureCanvas: null,
       signatureCtx: null,
-      lastPlaceholderPaintAt: 0,
-      // canvasStamp increments on every canvas write (frame blit / placeholder
-      // paint); lastSwappedCanvasStamp trails it so refreshProjectionTextures
+      // canvasStamp increments on every frame write; lastSwappedCanvasStamp
+      // trails it so refreshProjectionTextures
       // only re-uploads the plane texture when there is genuinely new content.
-      canvasStamp: 1,
+      canvasStamp: 0,
       lastSwappedCanvasStamp: 0,
       disposed: false,
     };
-
-    parts.frames.paintProjectionPlaceholder(ctx, record.camera);
 
     if (mode === 'video') {
       const video = document.createElement('video');
@@ -234,6 +238,7 @@ export function createProjection({
         runtime.planeMaterial.image = video;
       };
       video.addEventListener('loadedmetadata', bindVideoTexture);
+      video.addEventListener('loadeddata', bindVideoTexture);
       video.addEventListener('resize', bindVideoTexture);
       runtime.video = video;
       runtime.playback = attachCctvVideo(
@@ -280,8 +285,8 @@ export function createProjection({
 
     // Monitor plane = the frustum's far cap: video feeds bind the video element
     // directly (Cesium updates video-backed entity materials per frame); image
-    // feeds start on the placeholder canvas and switch to double-buffer swaps
-    // at <=1Hz.
+    // feeds use double-buffer swaps at <=1Hz. The plane stays hidden until
+    // the first drawable frame arrives.
     const geometry =
       record.frustumGeometry ||
       parts.geometry.computeFrustumGeometry(
@@ -370,10 +375,11 @@ export function createProjection({
 
       const active = parts.selection.getActiveRecord();
       if (layerState._enabled && layerState._showProjection && active) {
-        ensureProjectionRuntime(active);
-        if (active.projection && !active.projection.video) {
-          parts.frames.drawProjectionFrame(active);
-          parts.frames.refreshProjectionTextures(active);
+        const runtime = ensureProjectionRuntime(active);
+        if (runtime) {
+          if (!runtime.video) parts.frames.drawProjectionFrame(active);
+          setPlaneVisible(runtime, true);
+          if (!runtime.video) parts.frames.refreshProjectionTextures(active);
         }
       }
 

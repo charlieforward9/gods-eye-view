@@ -1,3 +1,4 @@
+import { greatCircleKm } from '../../geoDistance.js';
 import { CAMERA_SEEDS } from './policy.js';
 import {
   lookupModelSpec,
@@ -122,9 +123,8 @@ export function createCatalog({ state: layerState, services, parts, source }) {
    * @returns {Promise<Object[]>} Array of raw source objects, or empty on failure.
    */
 
-  async function loadCameraSources() {
+  async function loadCameraSources(signal) {
     try {
-      const signal = layerState._sourceAbort?.signal;
       const data = await source.getCatalog({ signal });
       signal?.throwIfAborted();
       if (!Array.isArray(data?.sources)) return [];
@@ -273,10 +273,78 @@ export function createCatalog({ state: layerState, services, parts, source }) {
 
     return catalog;
   }
+  async function loadCatalog(signal) {
+    const cameras = buildCatalogFromSources(await loadCameraSources(signal));
+    return cameras.length ? cameras : seedCatalog();
+  }
+
+  // Probe only the closest cameras before enabling or moving the map.
+  async function findNearestLiveCamera(point, { signal, radiusKm } = {}) {
+    const search = AbortSignal.any(
+      [signal, AbortSignal.timeout(24_000)].filter(Boolean),
+    );
+    const cameras = layerState._records.length
+      ? layerState._records.map(({ camera }) => camera)
+      : await loadCatalog(search);
+    signal?.throwIfAborted();
+    if (search.aborted) return null;
+    const closest = cameras
+      .map((camera) => ({ camera, distanceKm: greatCircleKm(point, camera) }))
+      .filter(({ distanceKm }) => distanceKm <= radiusKm)
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, 6);
+    if (!closest.length) return null;
+    // Custom sources can use their existing health contract when they do not
+    // expose an active probe. Only current provider media counts as ready.
+    if (typeof source.isLive !== 'function') {
+      const health = await source.getHealth({ signal: search });
+      signal?.throwIfAborted();
+      if (search.aborted) return null;
+      const freshAfter = Date.now() - 60_000;
+      const liveIds = new Set(
+        health.cameras
+          .filter(
+            ({ status, sourceKind, updatedAt }) =>
+              status === 'ok' &&
+              ['snapshot', 'live', 'upstream-image', 'hls-pull'].includes(
+                sourceKind,
+              ) &&
+              updatedAt >= freshAfter,
+          )
+          .map(({ id }) => id),
+      );
+      const best = closest.find(({ camera }) => liveIds.has(camera.id));
+      return best ? { id: best.camera.id, distanceKm: best.distanceKm } : null;
+    }
+    const budget = AbortSignal.timeout(12_000);
+    for (const { camera, distanceKm } of closest) {
+      signal?.throwIfAborted();
+      if (search.aborted || budget.aborted) break;
+      const deadline = AbortSignal.any([
+        search,
+        budget,
+        AbortSignal.timeout(3500),
+      ]);
+      try {
+        if (
+          (await source.isLive(camera, { signal: deadline })) &&
+          !deadline.aborted
+        ) {
+          signal?.throwIfAborted();
+          return { id: camera.id, distanceKm };
+        }
+      } catch {
+        signal?.throwIfAborted();
+      }
+    }
+    return null;
+  }
+
   return {
     seedCatalog,
     cityIdByName,
-    loadCameraSources,
+    loadCatalog,
     buildCatalogFromSources,
+    findNearestLiveCamera,
   };
 }

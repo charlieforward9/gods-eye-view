@@ -196,3 +196,35 @@ test('frame provenance admits the proxy kinds and leaves missing or unknown head
     assert.equal(frame.sourceKind, kind === 'other' ? null : kind);
   }
 });
+
+test('live snapshot checks reject offline, stale, and non-camera images', async () => {
+  const controller = new AbortController();
+  const cases = [
+    { status: 204, kind: 'synthetic', body: null },
+    { status: 204, kind: 'stale', body: null },
+    { status: 200, kind: 'streetview', body: 'photo' },
+    { status: 200, kind: 'upstream-image', body: 'photo', available: true },
+    { status: 200, kind: 'upstream-image', body: '' },
+  ];
+  for (const { status, kind, body, available } of cases) {
+    const source = createCctvSource({
+      fetchImpl: async (path, { signal }) => {
+        const url = new URL(path, 'http://localhost');
+        assert.equal(url.searchParams.get('upstreamOnly'), '1');
+        assert.equal(signal, controller.signal);
+        return new Response(body, {
+          status,
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'X-CCTV-Source': kind,
+          },
+        });
+      },
+    });
+    assert.equal(
+      await source.isLive(camera, { signal: controller.signal }),
+      Boolean(available),
+      kind,
+    );
+  }
+});

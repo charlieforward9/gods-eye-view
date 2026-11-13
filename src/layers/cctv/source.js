@@ -2,6 +2,7 @@ import {
   ACTIVE_FRAME_REFRESH_MS,
   FRAME_ENDPOINT,
   MEDIA_ENDPOINT,
+  createLeaseId,
 } from './sourcePolicy.js';
 const FRAME_SOURCE_KINDS = new Set([
   'upstream-image',
@@ -48,7 +49,63 @@ export function createCctvSource({
       throw new Error('Malformed camera ' + key + ' snapshot');
     return payload;
   }
+  async function liveSnapshot(camera, signal) {
+    const response = await fetchImpl(`${frameUrlFor(camera)}&upstreamOnly=1`, {
+      cache: 'no-store',
+      signal,
+    });
+    try {
+      return (
+        response.status === 200 &&
+        response.headers.get('x-cctv-source') === 'upstream-image' &&
+        /^image\/(?:jpeg|png|webp|gif|avif)(?:;|$)/i.test(
+          response.headers.get('content-type') || '',
+        ) &&
+        (await response.arrayBuffer()).byteLength > 0
+      );
+    } finally {
+      if (!response.bodyUsed) await response.body?.cancel().catch(() => {});
+    }
+  }
+
+  async function liveVideo(camera, signal) {
+    const hls = camera.feedType === 'hls';
+    const url = hls
+      ? `${mediaUrlFor(camera)}&lease=${createLeaseId()}`
+      : mediaUrlFor(camera);
+    try {
+      const response = await fetchImpl(url, {
+        cache: 'no-store',
+        signal,
+        ...(hls ? {} : { headers: { Range: 'bytes=0-1023' } }),
+      });
+      try {
+        const kind = response.headers.get('x-cctv-source');
+        return response.ok && kind === (hls ? 'hls-pull' : 'live-media');
+      } finally {
+        await response.body?.cancel().catch(() => {});
+      }
+    } finally {
+      if (hls) {
+        void fetchImpl(url, { method: 'DELETE', keepalive: true }).catch(
+          () => {},
+        );
+      }
+    }
+  }
+
   return {
+    async isLive(camera, { signal } = {}) {
+      signal?.throwIfAborted();
+      if (['hls', 'mp4', 'webm'].includes(camera.feedType)) {
+        try {
+          if (await liveVideo(camera, signal)) return true;
+        } catch {
+          signal?.throwIfAborted();
+        }
+      }
+      return liveSnapshot(camera, signal);
+    },
     getCatalog(options) {
       return read('/api/cctv/sources', 'sources', options);
     },

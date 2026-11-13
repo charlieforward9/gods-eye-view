@@ -91,13 +91,20 @@ function stillHarness() {
     source: {},
   });
   const load = (width, height) => {
+    runtime.imageReady = true;
     runtime.image = { naturalWidth: width, naturalHeight: height };
     runtime.imageStamp += 1;
     calls.length = 0;
     drawProjectionFrame(record);
     return calls.slice();
   };
-  return { runtime, load };
+  const pending = () => {
+    runtime.imageReady = false;
+    calls.length = 0;
+    drawProjectionFrame(record);
+    return calls.slice();
+  };
+  return { runtime, load, pending };
 }
 
 test('a still is drawn into its fitted rectangle over a full matte', () => {
@@ -138,4 +145,17 @@ test('same pixels at a new aspect redraw at the new fit', () => {
     ['drawImage', 0, 0, 1920, 1080],
   ]);
   assert.equal(runtime.canvasStamp, 2);
+});
+
+test('initial and failed still loads never paint over the map or the last good frame', () => {
+  const { runtime, load, pending } = stillHarness();
+  assert.deepEqual(pending(), []);
+  assert.deepEqual(load(0, 0), [], 'zero dimensions do not represent a frame');
+  assert.equal(runtime.drawnImageStamp, -1);
+  load(640, 480);
+  const decoded = runtime.drawnImageStamp;
+  assert.ok(decoded >= 0);
+  assert.deepEqual(pending(), []);
+  assert.equal(runtime.drawnImageStamp, decoded);
+  assert.equal(runtime.canvasStamp, 1);
 });
