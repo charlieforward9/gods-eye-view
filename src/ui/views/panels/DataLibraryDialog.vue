@@ -1,6 +1,6 @@
 <script setup>
 import { storeToRefs } from 'pinia';
-import { computed, nextTick, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
 import { t, tn } from '../../../i18n/index.js';
 import UiButton from '../../kit/UiButton.vue';
 import UiSelect from '../../kit/UiSelect.js';
@@ -21,6 +21,7 @@ const { controls } = storeToRefs(useDataLibraryStore());
 
 const root = useTemplateRef('root');
 const search = useTemplateRef('search');
+const compact = ref(false);
 
 watch(
   () => props.view.open,
@@ -29,6 +30,7 @@ watch(
     const dialog = root.value;
     if (!dialog) return;
     if (open) {
+      compact.value = document.body.classList.contains('chat-view-mode');
       if (!dialog.open) dialog.showModal?.();
       search.value?.focus();
       return;
@@ -89,9 +91,10 @@ const onDialogClick = (event) => {
     id="data-library"
     ref="root"
     class="data-library-dialog"
+    :class="{ 'data-library-dialog--compact': compact }"
     data-panel-surface
     aria-labelledby="data-library-title"
-    aria-describedby="data-library-intro"
+    :aria-describedby="compact ? undefined : 'data-library-intro'"
     @cancel.prevent="controls?.close()"
     @close="view.open && controls?.close()"
     @click="onDialogClick"
@@ -109,27 +112,30 @@ const onDialogClick = (event) => {
       >
     </header>
     <div class="data-library-body" data-panel-body>
-      <dl class="data-library-stats" :aria-label="t('Data Library at a glance')">
-        <div
-          v-for="tile in tiles"
-          :key="tile.id"
-          class="data-library-stat"
-          :data-stat="tile.id"
-        >
-          <dt class="data-library-stat-label">{{ tile.label }}</dt>
-          <dd class="data-library-stat-value">{{ tile.value }}</dd>
-          <dd class="data-library-stat-detail" :hidden="!tile.detail">
-            {{ tile.detail }}
-          </dd>
-        </div>
-      </dl>
-      <p id="data-library-intro" class="data-library-intro">
-        {{
-          t(
-            'Live sources beyond the core layers. Each one is fetched from its provider while it is on; nothing is stored in this app. Add one and it appears in Data Layers under Library.',
-          )
-        }}
-      </p>
+      <component :is="compact ? 'details' : 'div'" class="data-library-overview">
+        <summary v-if="compact">{{ t('Data Library at a glance') }}</summary>
+        <dl class="data-library-stats" :aria-label="t('Data Library at a glance')">
+          <div
+            v-for="tile in tiles"
+            :key="tile.id"
+            class="data-library-stat"
+            :data-stat="tile.id"
+          >
+            <dt class="data-library-stat-label">{{ tile.label }}</dt>
+            <dd class="data-library-stat-value">{{ tile.value }}</dd>
+            <dd class="data-library-stat-detail" :hidden="!tile.detail">
+              {{ tile.detail }}
+            </dd>
+          </div>
+        </dl>
+        <p id="data-library-intro" class="data-library-intro">
+          {{
+            t(
+              'Live sources beyond the core layers. Each one is fetched from its provider while it is on; nothing is stored in this app. Add one and it appears in Data Layers under Library.',
+            )
+          }}
+        </p>
+      </component>
       <div class="data-library-filters">
         <label class="data-library-field">
           <span>{{ t('Search') }}</span>
@@ -181,6 +187,7 @@ const onDialogClick = (event) => {
           v-for="row in view.shown"
           :key="row.entry.id"
           :row="row"
+          :compact="compact"
           @add="controls?.add($event)"
           @remove="controls?.remove($event)"
           @zoom="controls?.zoom($event)"

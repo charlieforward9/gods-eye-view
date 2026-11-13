@@ -279,7 +279,10 @@ export function createCatalog({ state: layerState, services, parts, source }) {
   }
 
   // Probe only the closest cameras before enabling or moving the map.
-  async function findNearestLiveCamera(point, { signal, radiusKm } = {}) {
+  async function findNearestLiveCamera(
+    point,
+    { signal, radiusKm, afterId, direction = 1 } = {},
+  ) {
     const search = AbortSignal.any(
       [signal, AbortSignal.timeout(24_000)].filter(Boolean),
     );
@@ -294,6 +297,12 @@ export function createCatalog({ state: layerState, services, parts, source }) {
       .sort((a, b) => a.distanceKm - b.distanceKm)
       .slice(0, 6);
     if (!closest.length) return null;
+    const current = closest.findIndex(({ camera }) => camera.id === afterId);
+    const candidates =
+      current < 0
+        ? closest
+        : closest.slice(current + 1).concat(closest.slice(0, current));
+    if (direction < 0) candidates.reverse();
     // Custom sources can use their existing health contract when they do not
     // expose an active probe. Only current provider media counts as ready.
     if (typeof source.isLive !== 'function') {
@@ -313,11 +322,11 @@ export function createCatalog({ state: layerState, services, parts, source }) {
           )
           .map(({ id }) => id),
       );
-      const best = closest.find(({ camera }) => liveIds.has(camera.id));
+      const best = candidates.find(({ camera }) => liveIds.has(camera.id));
       return best ? { id: best.camera.id, distanceKm: best.distanceKm } : null;
     }
     const budget = AbortSignal.timeout(12_000);
-    for (const { camera, distanceKm } of closest) {
+    for (const { camera, distanceKm } of candidates) {
       signal?.throwIfAborted();
       if (search.aborted || budget.aborted) break;
       const deadline = AbortSignal.any([

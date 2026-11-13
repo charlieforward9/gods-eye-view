@@ -3687,6 +3687,7 @@
   "The map did not switch.": "Det gick inte att byta karta.",
   "Map: {map}.": "Karta: {map}.",
   "Could not find {place}.": "Hittade inte {place}.",
+  "No other working cameras nearby.": "Det finns inga andra fungerande kameror i närheten.",
   "No camera is loaded here yet.": "Ingen kamera har laddats här ännu.",
   "No CCTV cameras are available near your location.": "Det finns inga tillgängliga övervakningskameror nära din plats.",
   "Nearest camera: {camera}.": "Närmaste kamera: {camera}.",

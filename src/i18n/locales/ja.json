@@ -3802,6 +3802,7 @@
   "Picked {target}.": "{target}を選択しました。",
   "{count} aircraft squawking an emergency right now.": "現在、{count}機が緊急コードを発信しています。",
   "Nearest camera to {place}: {camera}, {distance} km away.": "{place}に最も近いカメラ：{camera}（{distance} km先）。",
+  "No other working cameras nearby.": "近くに稼働中のカメラはほかにありません。",
   "No camera is loaded here yet.": "ここにはまだカメラが読み込まれていません。",
   "No CCTV cameras are available near your location.": "現在地の近くに利用できる監視カメラはありません。",
   "Nearest camera to {place}: {camera}, {distance} m away.": "{place}に最も近いカメラ：{camera}（{distance} m先）。",

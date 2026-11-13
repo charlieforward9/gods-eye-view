@@ -3497,6 +3497,7 @@
   "The map did not switch.": "המפה לא התחלפה.",
   "Map: {map}.": "מפה: {map}.",
   "Could not find {place}.": "לא ניתן היה למצוא את {place}.",
+  "No other working cameras nearby.": "אין מצלמות פעילות נוספות בקרבת מקום.",
   "No camera is loaded here yet.": "עדיין לא נטענה כאן מצלמה.",
   "No CCTV cameras are available near your location.": "אין מצלמות במעגל סגור זמינות בקרבת המיקום שלך.",
   "Nearest camera: {camera}.": "המצלמה הקרובה ביותר: {camera}.",

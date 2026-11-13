@@ -31,6 +31,7 @@ import {
 import { t } from '../i18n/index.js';
 import { createChatAgent } from './agent.js';
 import { createAgentRunner } from './agentRunner.js';
+import { cycleNearbyCamera } from './capabilities/cameras.js';
 import { createAnswerRunner } from './answers.js';
 import { basemapLabel, createBasemaps } from './basemaps.js';
 import { createCameraWatch } from './camera.js';
@@ -130,6 +131,10 @@ export function createChatViewKernel({
   ];
   let emitQueued = false;
   let disposed = false;
+  let cameraSearch = null;
+  let cameraCycle = null;
+  const cancelCameraCycle = () => cameraCycle?.abort();
+  cleanups.push(cancelCameraCycle);
 
   // Airports and named regions resolve here; anything else geocodes.
   const resolvePlace = async (query, options) =>
@@ -237,6 +242,7 @@ export function createChatViewKernel({
     // answering: the agent's conversation is cancelled, or reset for
     // another session.
     supersede({ agent = null } = {}) {
+      cancelCameraCycle();
       ctx.stage.stopPlaying();
       state.generation += 1;
       ctx.answers.cancel();
@@ -267,6 +273,9 @@ export function createChatViewKernel({
     viewCenter,
     fetchJson: host.fetchJson,
     imperial: Boolean(host.imperial),
+    setCameraSearch(search) {
+      cameraSearch = search;
+    },
     timeline: () => ctx.timeline(),
     setTime(time) {
       const session = ctx.active();
@@ -520,6 +529,10 @@ export function createChatViewKernel({
     host.onSelection({
       selected(detail) {
         if (detail.origin && detail.origin !== 'user') return;
+        if (detail.layerId === 'cctv' && detail.id !== cameraSearch?.id) {
+          cameraSearch = null;
+          cancelCameraCycle();
+        }
         const asked = Object.freeze({
           kind: 'object',
           layerId: detail.layerId || null,
@@ -563,6 +576,14 @@ export function createChatViewKernel({
   );
   cleanups.push(
     dataManager.subscribe((event) => {
+      if (
+        event?.layerId === 'cctv' &&
+        event.type === 'visibility' &&
+        event.enabled === false
+      ) {
+        cameraSearch = null;
+        cancelCameraCycle();
+      }
       if (/^visibility|^refresh$/.test(event?.type || '')) sample();
     }),
   );
@@ -580,7 +601,10 @@ export function createChatViewKernel({
   cleanups.push(host.onPageHide(() => store.flush()));
 
   const intents = {
-    ask: (text, chips = []) => ctx.questions.ask(text, chips),
+    ask(text, chips = []) {
+      cancelCameraCycle();
+      return ctx.questions.ask(text, chips);
+    },
     stop() {
       ctx.questions.halt();
       emit();
@@ -841,6 +865,29 @@ export function createChatViewKernel({
     },
     /** Camera controls use the same owner as Panels. */
     async camera(action) {
+      const cctv = dataManager.layers.get('cctv')?.module;
+      const activeId = cctv?.getUIState?.()?.activeCameraId;
+      if (cameraSearch?.id !== activeId) cameraSearch = null;
+      const step = action === 'next' ? 1 : action === 'prev' ? -1 : 0;
+      if (step && cameraSearch) {
+        if (cameraCycle) return;
+        cameraCycle = new AbortController();
+        try {
+          const result = await cycleNearbyCamera(
+            cameraSearch,
+            step,
+            capabilityContext,
+            cameraCycle.signal,
+          );
+          sample();
+          emit();
+          return result.cancelled ? undefined : result;
+        } catch {
+          return cameraCycle.signal.aborted ? undefined : { ok: false };
+        } finally {
+          cameraCycle = null;
+        }
+      }
       const result = await run('control_cctv', { action }).catch(() => ({
         ok: false,
       }));

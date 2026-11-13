@@ -4072,6 +4072,7 @@
   "Picked {target}.": "Выбрано: {target}.",
   "{count} aircraft squawking an emergency right now.": "Сейчас код бедствия передают воздушные суда: {count}.",
   "Nearest camera to {place}: {camera}, {distance} km away.": "Ближайшая к {place} камера: {camera}, в {distance} км.",
+  "No other working cameras nearby.": "Поблизости нет других работающих камер.",
   "No camera is loaded here yet.": "Здесь пока не загружено ни одной камеры.",
   "No CCTV cameras are available near your location.": "Рядом с вами нет доступных камер видеонаблюдения.",
   "Nearest camera to {place}: {camera}, {distance} m away.": "Ближайшая к {place} камера: {camera}, в {distance} м.",

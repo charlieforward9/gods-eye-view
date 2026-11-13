@@ -3982,6 +3982,7 @@
   "Picked {target}.": "Selecionado: {target}.",
   "{count} aircraft squawking an emergency right now.": "{count} aeronaves estão transmitindo código de emergência agora.",
   "Nearest camera to {place}: {camera}, {distance} km away.": "Câmera mais próxima de {place}: {camera}, a {distance} km.",
+  "No other working cameras nearby.": "Não há outras câmeras em funcionamento por perto.",
   "No camera is loaded here yet.": "Nenhuma câmera foi carregada aqui ainda.",
   "No CCTV cameras are available near your location.": "Não há câmeras de vigilância disponíveis perto da sua localização.",
   "Nearest camera to {place}: {camera}, {distance} m away.": "Câmera mais próxima de {place}: {camera}, a {distance} m.",

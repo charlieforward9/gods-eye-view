@@ -90,7 +90,32 @@ const OFFLINE_MIAMI = {
   lat: MIAMI.lat,
   lon: MIAMI.lon - 0.002,
 };
-const CCTV_CAMERAS = [MIAMI, OFFLINE_MIAMI, KANEPI].map((camera) => ({
+const PALM_BEACH = { lat: 26.67, lon: -80.36 };
+const PALM_FIRST = {
+  id: 'qa-palm-first',
+  name: 'QA Palm Beach first',
+  ...PALM_BEACH,
+};
+const PALM_OFFLINE = {
+  ...PALM_FIRST,
+  id: 'qa-palm-offline',
+  name: 'QA Palm Beach offline',
+  lon: -80.35,
+};
+const PALM_SECOND = {
+  ...PALM_FIRST,
+  id: 'qa-palm-second',
+  name: 'QA Palm Beach second',
+  lon: -80.3,
+};
+const CCTV_CAMERAS = [
+  MIAMI,
+  PALM_FIRST,
+  KANEPI,
+  PALM_OFFLINE,
+  PALM_SECOND,
+  OFFLINE_MIAMI,
+].map((camera) => ({
   ...camera,
   provider: 'QA CCTV fixture',
   sourceKind: 'synthetic',
@@ -112,6 +137,7 @@ const installFixtures = async (page) => {
   await client.send('Fetch.enable', {
     patterns: [
       { urlPattern: '*/api/*' },
+      { urlPattern: '*photon.komoot.io/*' },
       { urlPattern: '*earthquake.usgs.gov/*' },
     ],
   });
@@ -144,6 +170,46 @@ const installFixtures = async (page) => {
           body: JSON.stringify(body),
         })
         .catch(() => {});
+    const place = url.searchParams.get('address') || url.searchParams.get('q');
+    if (place?.toLowerCase() === 'palm beach county') {
+      if (
+        url.pathname === '/api/google/geocode' ||
+        url.pathname === '/api/geocode'
+      ) {
+        await json({
+          status: 'OK',
+          results: [
+            {
+              formatted_address: 'Palm Beach County, FL, USA',
+              geometry: {
+                location: { lat: PALM_BEACH.lat, lng: PALM_BEACH.lon },
+              },
+              types: ['administrative_area_level_2'],
+            },
+          ],
+        });
+        return;
+      }
+      if (url.hostname === 'photon.komoot.io') {
+        await json({
+          features: [
+            {
+              geometry: {
+                type: 'Point',
+                coordinates: [PALM_BEACH.lon, PALM_BEACH.lat],
+              },
+              properties: {
+                name: 'Palm Beach County',
+                state: 'Florida',
+                countrycode: 'US',
+                type: 'county',
+              },
+            },
+          ],
+        });
+        return;
+      }
+    }
     if (
       /\/api\/(?:openai\/chat|gemini\/chat|realtime\/token)$/.test(url.pathname)
     ) {
@@ -231,7 +297,11 @@ const installFixtures = async (page) => {
       });
       return;
     }
-    if (url.pathname === `/api/cctv/frame/${OFFLINE_MIAMI.id}`) {
+    if (
+      [OFFLINE_MIAMI.id, PALM_OFFLINE.id].some(
+        (id) => url.pathname === `/api/cctv/frame/${id}`,
+      )
+    ) {
       await request.respond({ status: 204 }).catch(() => {});
       return;
     }
@@ -1087,6 +1157,34 @@ const checkCctvLocation = async () => {
         (await selected(MIAMI.id)),
       named?.say,
     );
+    if (await selected(MIAMI.id)) {
+      await page.tap('.cv-camera-actions button[aria-label="Next"]');
+      await page.waitForFunction(() =>
+        document
+          .querySelector('.cv-toast')
+          ?.textContent.includes('No other working cameras nearby.'),
+      );
+      check(
+        'a single working camera keeps its place when there is no nearby alternative',
+        (await mapState()).active === MIAMI.id,
+      );
+    }
+    const county = (await ask(page, 'CCTV in Palm Beach County'))?.answer;
+    const first = county?.ok && (await selected(PALM_FIRST.id));
+    if (first) await page.tap('.cv-camera-actions button[aria-label="Next"]');
+    const next = first && (await selected(PALM_SECOND.id));
+    if (next)
+      await page.tap('.cv-camera-actions button[aria-label="Previous"]');
+    check(
+      'Palm Beach County next and previous stay nearby and skip the offline feed',
+      first && next && (await selected(PALM_FIRST.id)),
+      JSON.stringify({
+        say: county?.say,
+        first,
+        next,
+        active: (await mapState()).active,
+      }),
+    );
   } finally {
     await browserContext.clearPermissionOverrides();
     await page.close();
@@ -1729,6 +1827,26 @@ const runFull = async () => {
   await page.click('[role="tab"][aria-controls="cv-menu-panel"]:nth-child(2)');
   await page.click('[data-library-launcher]');
   await page.waitForSelector('#data-library[open]', { visible: true });
+  await page.waitForSelector(
+    '#data-library .data-library-item-details > summary',
+  );
+  const compact = await page.evaluate(() => {
+    const dialog = document.querySelector('#data-library');
+    const details = dialog.querySelector('.data-library-item-details');
+    const overview = dialog.querySelector('.data-library-overview');
+    const collapsed = !details.open && !overview.open;
+    details.querySelector('summary').click();
+    return (
+      collapsed &&
+      details.open &&
+      !!details.querySelector('.data-library-meta a') &&
+      dialog.scrollWidth <= dialog.clientWidth + 1
+    );
+  });
+  check(
+    'Chat Library keeps catalogue details available on demand without sideways scroll',
+    compact,
+  );
   await page.keyboard.press('Escape');
   await page.waitForFunction(
     () => !document.querySelector('#data-library[open]'),

@@ -3802,6 +3802,7 @@
   "Picked {target}.": "已选中 {target}。",
   "{count} aircraft squawking an emergency right now.": "目前有 {count} 架飞机发出紧急代码。",
   "Nearest camera to {place}: {camera}, {distance} km away.": "离{place}最近的摄像头：{camera}，相距 {distance} 公里。",
+  "No other working cameras nearby.": "附近没有其他可用的摄像头。",
   "No camera is loaded here yet.": "这里还没有加载摄像头。",
   "No CCTV cameras are available near your location.": "你的位置附近没有可用的监控摄像头。",
   "Nearest camera to {place}: {camera}, {distance} m away.": "离{place}最近的摄像头：{camera}，相距 {distance} 米。",

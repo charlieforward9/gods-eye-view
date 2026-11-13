@@ -23,28 +23,33 @@ function distanceAnswer(camera, place, km) {
       });
 }
 
-async function selectLiveCamera(point, place, ctx, signal) {
+async function selectLiveCamera(point, place, ctx, signal, cycle = null) {
   const cctv = ctx.dataManager.layers.get('cctv')?.module;
   const best = await cctv?.findNearestLiveCamera?.(point, {
     signal,
     radiusKm: nearbyLimitKm,
+    ...cycle,
   });
   if (signal?.aborted) return { ok: false, cancelled: true };
-  if (!best)
+  if (!best || best.id === cycle?.afterId)
     return {
       ok: false,
-      error: place
-        ? t('No camera is loaded here yet.')
-        : t('No CCTV cameras are available near your location.'),
+      error: cycle
+        ? t('No other working cameras nearby.')
+        : place
+          ? t('No camera is loaded here yet.')
+          : t('No CCTV cameras are available near your location.'),
     };
 
-  const enabled = await ctx.run(
-    'set_layer_visibility',
-    { layerId: 'cctv', enabled: true },
-    { signal },
-  );
-  if (signal?.aborted) return { ok: false, cancelled: true };
-  if (enabled?.ok === false) return enabled;
+  if (!cycle) {
+    const enabled = await ctx.run(
+      'set_layer_visibility',
+      { layerId: 'cctv', enabled: true },
+      { signal },
+    );
+    if (signal?.aborted) return { ok: false, cancelled: true };
+    if (enabled?.ok === false) return enabled;
+  }
   await ctx.run('stop_tracking', {}, { signal }).catch(() => {});
   if (signal?.aborted) return { ok: false, cancelled: true };
   const result = await ctx.run(
@@ -53,6 +58,8 @@ async function selectLiveCamera(point, place, ctx, signal) {
     { signal },
   );
   if (result?.ok === false) return result;
+  if (signal?.aborted) return { ok: false, cancelled: true };
+  ctx.setCameraSearch?.({ point, place, id: best.id });
   return {
     ...result,
     say: distanceAnswer(
@@ -61,6 +68,13 @@ async function selectLiveCamera(point, place, ctx, signal) {
       best.distanceKm,
     ),
   };
+}
+
+export function cycleNearbyCamera(search, direction, ctx, signal) {
+  return selectLiveCamera(search.point, search.place, ctx, signal, {
+    afterId: search.id,
+    direction,
+  });
 }
 
 /**
@@ -80,6 +94,7 @@ export const nearestCamera = Object.freeze({
         error: t('Could not find {place}.', { place: args.place }),
       };
     if (at) return selectLiveCamera(at, args.place, ctx, signal);
+    ctx.setCameraSearch?.(null);
     await ctx
       .run(
         'set_layer_visibility',
