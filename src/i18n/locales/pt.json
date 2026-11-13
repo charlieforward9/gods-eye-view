@@ -3692,5 +3692,11 @@
   "Confirm: remove every added entry from Data Layers": "Confirmar: remover de \"Camadas de dados\" todas as entradas adicionadas",
   "Remove every added entry from Data Layers": "Remover de \"Camadas de dados\" todas as entradas adicionadas",
   "Showing {shown} of {total}": "Mostrando {shown} de {total}",
-  "BROWSE DATA LIBRARY": "EXPLORAR BIBLIOTECA DE DADOS"
+  "BROWSE DATA LIBRARY": "EXPLORAR BIBLIOTECA DE DADOS",
+  "That control is unavailable for this view.": "Este controle não está disponível nesta visualização.",
+  "The selected target has changed.": "O alvo selecionado mudou.",
+  "The immersive view is no longer active.": "A visualização imersiva não está mais ativa.",
+  "The ridden target has changed.": "O alvo desta visualização mudou.",
+  "That signal is no longer available.": "Esse sinal não está mais disponível.",
+  "Unknown immersive control.": "Controle de visualização imersiva desconhecido."
 }

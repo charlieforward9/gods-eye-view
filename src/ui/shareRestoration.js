@@ -165,7 +165,9 @@ export class ShareRestoration {
     feedback,
     updateFeedback,
     applyFollowOffset = null,
+    shouldPersistLayerIntent,
   }) {
+    this._shouldPersistLayerIntent = shouldPersistLayerIntent;
     Object.assign(this, {
       viewer,
       navigation,
@@ -407,6 +409,7 @@ export class ShareRestoration {
         this._dataManager,
         this.shareLinkManager,
         {
+          shouldPersistIntent: this._shouldPersistLayerIntent,
           onDurableStateChange: (state) => this.syncModels3d(state),
           onTrackingRestoreStatus: (result) =>
             this._handleShareTrackingRestoreStatus(result),

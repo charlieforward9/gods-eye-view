@@ -2,6 +2,40 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorldClock, WORLD_CLOCK_TICK_MS } from './worldClock.js';
 
+test('a focused coverage lookup reads only the named core sources', () => {
+  const world = createWorldClock();
+  world.register({
+    id: 'radar',
+    coverage: () => ({
+      start: 100,
+      end: 200,
+      marks: [99, 100, 150, 200, 201, NaN],
+    }),
+  });
+  const remove = world.register({
+    id: 'satellites',
+    coverage: () => ({ start: 0, end: 300, marks: [250] }),
+  });
+  assert.deepEqual(world.coverageFor(['radar']), {
+    start: 100,
+    end: 200,
+    marks: [100, 150, 200],
+  });
+  assert.deepEqual(world.coverageFor('satellites'), {
+    start: 0,
+    end: 300,
+    marks: [250],
+  });
+  assert.equal(world.coverageFor(['not-loaded']), null);
+  assert.equal(
+    world.coverage().start,
+    0,
+    'the existing desktop union is unchanged',
+  );
+  remove();
+  assert.equal(world.coverageFor(['satellites']), null);
+});
+
 function fakeTime() {
   const t = {
     wall: Date.UTC(2026, 10, 1, 12),
@@ -247,7 +281,10 @@ test('coverage is the union of the registered sources', () => {
     id: 'radar',
     coverage: () => ({ start: 100, end: 200, marks: [100, 150, 200] }),
   });
-  clock.register({ id: 'satellites', coverage: () => ({ start: 50, end: 180 }) });
+  clock.register({
+    id: 'satellites',
+    coverage: () => ({ start: 50, end: 180 }),
+  });
   clock.register({ id: 'empty', coverage: () => null });
   assert.deepEqual(clock.coverage(), {
     start: 50,

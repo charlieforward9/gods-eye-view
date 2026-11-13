@@ -978,6 +978,33 @@ test('a direct Context selection promotes its owned tracker layer before persist
   coordinator.destroy();
 });
 
+test('a staged layer edit stays out of the next durable user edit', async () => {
+  const storage = memoryStorage();
+  const manager = productionManager();
+  let persist = true;
+  const coordinator = new LayerStateCoordinator(manager, shareSink(), {
+    storage,
+    shouldPersistIntent: () => persist,
+  });
+  await coordinator.start();
+  await manager.setEnabled('traffic', true, { origin: 'user' });
+  persist = false;
+  await manager.setEnabled('earthquakes', true, { origin: 'voice' });
+  assert.equal(manager.isEnabled('earthquakes'), true);
+  assert.equal(
+    coordinator.getDurableState().enabledLayerIds.includes('earthquakes'),
+    false,
+  );
+  persist = true;
+  await manager.setEnabled('flights', true, { origin: 'user' });
+  assert.deepEqual(
+    parseStoredLayerState(storage.getItem(LAYER_STATE_STORAGE_KEY))
+      .enabledLayerIds,
+    ['flights', 'traffic'],
+  );
+  coordinator.destroy();
+});
+
 test('a satellite class choice is saved, shared and restored', async () => {
   const storage = memoryStorage();
   const manager = productionManager();

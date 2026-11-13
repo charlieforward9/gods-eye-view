@@ -3518,5 +3518,11 @@
   "Confirm: remove every added entry from Data Layers": "確認：從數據圖層中移除所有已添加條目",
   "Remove every added entry from Data Layers": "從數據圖層中移除所有已添加條目",
   "Showing {shown} of {total}": "顯示 {shown} / {total}",
-  "BROWSE DATA LIBRARY": "瀏覽數據資源庫"
+  "BROWSE DATA LIBRARY": "瀏覽數據資源庫",
+  "That control is unavailable for this view.": "此檢視中無法使用該控制項。",
+  "The selected target has changed.": "所選目標已變更。",
+  "The immersive view is no longer active.": "沉浸式檢視已結束。",
+  "The ridden target has changed.": "此檢視跟隨的目標已變更。",
+  "That signal is no longer available.": "該訊號已無法使用。",
+  "Unknown immersive control.": "未知的沉浸式檢視控制項。"
 }

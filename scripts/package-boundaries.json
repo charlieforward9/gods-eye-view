@@ -782,6 +782,8 @@
       "src/i18n/marker.js",
       "src/ui/layers.js",
       "src/ui/layerPanel.js",
+      "src/data/layerGroups.js",
+      "src/data/rowControls.js",
       "src/ui/layerNames.js",
       "src/ui/weatherPanel.js",
       "src/ui/railCards.js",
@@ -1040,7 +1042,8 @@
       "src/i18n/locales/zh-CN.json",
       "src/i18n/locales/zh-Hant.json",
       "src/ui/layerNames.js",
-      "src/ui/unitLabels.js"
+      "src/ui/unitLabels.js",
+      "src/ui/immersiveControls.js"
     ],
     "external": ["cesium"]
   },
@@ -1191,6 +1194,8 @@
       "src/ui/effects.js",
       "src/ui/frameRateMonitor.js",
       "src/ui/layerPanel.js",
+      "src/data/layerGroups.js",
+      "src/data/rowControls.js",
       "src/ui/weatherPanel.js",
       "src/ui/railCards.js",
       "src/ui/railCardBlocks.js",
@@ -1341,7 +1346,8 @@
       "src/ui/views/panels/WildlifeSightingCard.vue",
       "src/ui/wildlifeSightingPlacement.js",
       "src/overlays/worldOverlayChrome.js",
-      "src/layers/wildlifeSightings/photoText.js"
+      "src/layers/wildlifeSightings/photoText.js",
+      "src/ui/immersiveControls.js"
     ],
     "external": ["cesium", "vue", "pinia", "vue-i18n"]
   },
@@ -3133,6 +3139,8 @@
       "src/ui/effects.js",
       "src/ui/frameRateMonitor.js",
       "src/ui/layerPanel.js",
+      "src/data/layerGroups.js",
+      "src/data/rowControls.js",
       "src/ui/weatherPanel.js",
       "src/ui/railCards.js",
       "src/ui/railCardBlocks.js",
@@ -3803,7 +3811,8 @@
       "src/data/planespottersPhoto.js",
       "src/ui/stores/dataLibrary.js",
       "src/data/openVesselPhoto.js",
-      "src/layers/vessels/photos.js"
+      "src/layers/vessels/photos.js",
+      "src/ui/immersiveControls.js"
     ],
     "external": [
       "hls.js",

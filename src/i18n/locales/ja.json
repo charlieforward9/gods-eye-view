@@ -3518,5 +3518,11 @@
   "Confirm: remove every added entry from Data Layers": "確認：追加したすべての項目をデータレイヤーから削除",
   "Remove every added entry from Data Layers": "追加したすべての項目をデータレイヤーから削除",
   "Showing {shown} of {total}": "{total}件中{shown}件を表示",
-  "BROWSE DATA LIBRARY": "データライブラリを見る"
+  "BROWSE DATA LIBRARY": "データライブラリを見る",
+  "That control is unavailable for this view.": "このビューでは、この操作は利用できません。",
+  "The selected target has changed.": "選択した対象が変わりました。",
+  "The immersive view is no longer active.": "没入型ビューは終了しています。",
+  "The ridden target has changed.": "このビューで追跡中の対象が変わりました。",
+  "That signal is no longer available.": "このシグナルは利用できなくなりました。",
+  "Unknown immersive control.": "没入型ビューの不明な操作です。"
 }

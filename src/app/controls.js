@@ -11,6 +11,7 @@ import { t } from '../i18n/index.js';
  * whose address does not carry one. `localePicker: false` removes the language
  * picker, for a host that offers its own language choice (`switchLocale` from
  * the `./i18n` entry).
+ * `shouldPersistLayerIntent` lets a host stage layer changes for the visit.
  */
 export function createApplicationControls({
   scene: { viewer, mapStackController, operations },
@@ -22,6 +23,7 @@ export function createApplicationControls({
   defer,
   initialShareCode = null,
   localePicker = true,
+  shouldPersistLayerIntent,
 }) {
   // Initialize the style manager (post-processing, HUD, locations, share links)
   const styleManager = new Controls(viewer, {
@@ -39,6 +41,7 @@ export function createApplicationControls({
     // A share code to open at start-up instead of the page's address.
     initialShareCode,
     localePicker,
+    shouldPersistLayerIntent,
   });
   defer(() => styleManager.orbitController.stop());
   defer(() => styleManager.hud.destroy());

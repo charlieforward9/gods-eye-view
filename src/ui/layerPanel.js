@@ -1,6 +1,13 @@
 import { h, render as renderVue } from 'vue';
 import LayerRows from './layerPanel/LayerRows.vue';
 import { layerFeedState } from '../data/feedState.js';
+import { LAYER_GROUPS } from '../data/layerGroups.js';
+import {
+  applyRowChip,
+  findRowChip,
+  rowListItemParams,
+  rowSliderParams,
+} from '../data/rowControls.js';
 export { layerFeedState } from '../data/feedState.js';
 import { GUIDANCE_STATUSES } from '../loadingFeedback.js';
 import { keyGuidanceText, keyRequirementText } from './keyGuidance.js';
@@ -41,79 +48,14 @@ function lifecycleStateLabel(lifecycleState) {
   return t(lifecycleState === 'enabling' ? msg('ENABLING') : msg('DISABLING'));
 }
 
-// Presentation order is independent of catalog registration and startup order.
-const PANEL_GROUPS = [
-  {
-    label: msg('Movement'),
-    ids: [
-      'satellites',
-      'flights',
-      'military',
-      'local-adsb',
-      'ais-live-vessels',
-      'traffic',
-      'transit',
-      'rail',
-      'bikeshare',
-    ],
-  },
-  {
-    label: msg('Cameras'),
-    ids: ['cctv', 'recent-imagery', 'street-level'],
-  },
-  {
-    label: msg('Infrastructure'),
-    ids: [
-      'alpr-cameras',
-      'military-installations',
-      'drone-airspace',
-      'local-datacenters',
-      'telegeography-submarine-cables',
-      'local-dams',
-      'sea-marks',
-      'ski-pistes',
-    ],
-  },
-  {
-    label: msg('Events'),
-    ids: [
-      'rocket-launches',
-      'earthquakes',
-      'local-firms',
-      'fire-perimeters',
-      'gnss-integrity',
-      's2-ghostmaps',
-      'shipwrecks',
-      'news',
-    ],
-  },
-  {
-    label: msg('Wildlife'),
-    ids: ['wildlife-sightings'],
-  },
-  {
-    label: msg('Weather'),
-    ids: [
-      'air-quality',
-      'wind',
-      'weather-radar',
-      'weather-satellite',
-      'weather-lightning',
-      'weather-cyclones',
-    ],
-  },
-  // Directions renders in the Utilities panel, beside Draw and Import, and
-  // needs no heading there.
-  {
-    label: msg('Utilities'),
-    ids: ['directions', 'osm-places'],
-    containerId: 'utilities-toggles',
-  },
-  {
-    label: msg('Audio'),
-    ids: ['radio'],
-  },
-];
+// Presentation order is independent of catalog registration and startup
+// order. Directions renders in the Utilities panel, beside Draw and Import,
+// and needs no heading there.
+const GROUP_CONTAINERS = Object.freeze({ utilities: 'utilities-toggles' });
+const PANEL_GROUPS = LAYER_GROUPS.map((group) => ({
+  ...group,
+  containerId: GROUP_CONTAINERS[group.id],
+}));
 const PANEL_ORDER = PANEL_GROUPS.flatMap(({ label, ids, containerId }) =>
   ids.map((id) => ({ id, label, containerId })),
 );
@@ -584,37 +526,25 @@ export class LayerPanel {
     }
   }
 
-  // Re-read the live descriptor rather than trusting the rendered chip, so a
-  // stale row can never apply an inverted toggle. Unmounted rows keep their
-  // listeners, so a click from a released generation is dropped.
+  // Each tap resolves against the live descriptor (data/rowControls.js).
+  // Unmounted rows keep their listeners, so a click from a released
+  // generation is dropped.
   _selectChip(id, chipId, generation = this._generation) {
     if (this._destroyed || this._generation !== generation) return;
-    // A switch option carries the same fields as a chip.
-    const live = this._rowControlsFor(id);
-    const chip = [
-      ...(live?.chips || []),
-      ...(live?.segmented?.options || []),
-    ].find((entry) => entry.id === chipId);
-    if (!chip || chip.disabled || (!this.isEnabled(id) && !chip.whileOff))
-      return;
-    if (typeof chip.onClick === 'function') chip.onClick();
-    else if (chip.params)
-      this.setLayerParams(id, chip.params, { origin: 'user' });
+    const chip = findRowChip(this._rowControlsFor(id), chipId);
+    if (!chip || (!this.isEnabled(id) && !chip.whileOff)) return;
+    applyRowChip(chip, (params) =>
+      this.setLayerParams(id, params, { origin: 'user' }),
+    );
   }
 
   // A row slider (e.g. the Active Fires minimum-FRP filter) maps its position
   // to params through the live descriptor on every tick.
   _moveSlider(id, sliderId, value, generation = this._generation) {
     if (this._destroyed || this._generation !== generation) return;
-    const slider = this._rowControlsFor(id)?.slider;
-    if (
-      !slider ||
-      slider.id !== sliderId ||
-      typeof slider.params !== 'function' ||
-      !this.isEnabled(id)
-    )
-      return;
-    this.setLayerParams(id, slider.params(value), { origin: 'user' });
+    if (!this.isEnabled(id)) return;
+    const params = rowSliderParams(this._rowControlsFor(id), sliderId, value);
+    if (params) this.setLayerParams(id, params, { origin: 'user' });
   }
 
   _pickRangeEnd(id, rangeId, end, value, generation = this._generation) {
@@ -633,11 +563,8 @@ export class LayerPanel {
 
   _selectListItem(id, itemId, generation = this._generation) {
     if (this._destroyed || this._generation !== generation) return;
-    const item = this._rowControlsFor(id)?.list?.items?.find(
-      (entry) => entry.id === itemId,
-    );
-    if (item && !item.disabled && item.params)
-      this.setLayerParams(id, item.params, { origin: 'user' });
+    const params = rowListItemParams(this._rowControlsFor(id), itemId);
+    if (params) this.setLayerParams(id, params, { origin: 'user' });
   }
 
   _scheduleRowControlsRefresh() {

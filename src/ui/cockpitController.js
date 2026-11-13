@@ -100,6 +100,7 @@ import {
 import { DEFAULT_RADAR_RANGE_NM, nextRadarRange } from '../cockpitRadar.js';
 import { VESSEL_BRIDGE_PITCH_DEG } from '../cockpitSubjects.js';
 import { stepLook } from '../cockpitLook.js';
+import { describeImmersion, controlImmersion } from './immersiveControls.js';
 import * as Cesium from 'cesium';
 
 /** Whether the user asked for reduced motion: look turns then jump. */
@@ -237,8 +238,17 @@ export class CockpitViewController {
     this.publishVision = publish.vision ?? (() => {});
     this.publishSignals = publish.signals ?? (() => {});
     this.publishUtilityLayout = publish.utilityLayout ?? (() => {});
-    this.publishRadar = publish.radar ?? (() => {});
-    this.publishOrbital = publish.orbital ?? (() => {});
+    // Keep the existing plain presentations available to another shell.
+    // This adds no timer or second camera/rendering owner.
+    this.immersivePresentation = { radar: null, orbital: null };
+    this.publishRadar = (view) => {
+      this.immersivePresentation.radar = view;
+      publish.radar?.(view);
+    };
+    this.publishOrbital = (view) => {
+      this.immersivePresentation.orbital = view;
+      publish.orbital?.(view);
+    };
     /** The bridge radar's range in nautical miles; kept across bridges. */
     this.radarRangeNm = DEFAULT_RADAR_RANGE_NM;
     this.presence = {
@@ -513,6 +523,13 @@ export class CockpitViewController {
   }
   resolveEntryKind() {
     return resolveEntryKind.call(this);
+  }
+  /** Plain state and shared controls for a shell outside the native HUD. */
+  getImmersiveState() {
+    return describeImmersion(this);
+  }
+  controlImmersive(action, args) {
+    return controlImmersion(this, action, args);
   }
   dispatchCockpitModeChanged(active, info) {
     return dispatchCockpitModeChanged.call(this, active, info);

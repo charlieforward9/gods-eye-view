@@ -97,6 +97,8 @@ export class StyleManager extends ShellFacade {
    * @param {object} [options]
    * @param {boolean} [options.localePicker=true] - false removes the language
    *   picker, for a host that offers its own language choice.
+   * @param {() => boolean} [options.shouldPersistLayerIntent] - whether
+   *   direct layer changes update saved preferences.
    */
   constructor(
     viewer,
@@ -107,6 +109,7 @@ export class StyleManager extends ShellFacade {
       requestServices,
       initialShareCode = null,
       localePicker = true,
+      shouldPersistLayerIntent,
     } = {},
   ) {
     super();
@@ -211,6 +214,7 @@ export class StyleManager extends ShellFacade {
       updateFeedback: () => this._updateGlobalLoadingFeedback(),
       applyFollowOffset: (entity, offset) =>
         applyShareFollowOffset(viewer, entity, offset),
+      shouldPersistLayerIntent,
     });
 
     this._visualSettings = new VisualSettings({

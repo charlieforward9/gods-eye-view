@@ -201,6 +201,12 @@ export class CockpitCoordinator {
       return 'No aircraft layer is on — turn on Flights or Military Flights and track an aircraft to enter Cockpit';
     return null;
   }
+  getImmersiveState() {
+    return this.cockpitView.getImmersiveState();
+  }
+  controlImmersive(action, args) {
+    return this.cockpitView.controlImmersive(action, args);
+  }
   getCockpitState() {
     const { militaryAwarenessLayer } = this.services;
     const snapshot = militaryAwarenessLayer.getContextSnapshot?.();

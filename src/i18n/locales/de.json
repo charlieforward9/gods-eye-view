@@ -3605,5 +3605,11 @@
   "Confirm: remove every added entry from Data Layers": "Bestätigen: alle hinzugefügten Einträge aus Datenebenen entfernen",
   "Remove every added entry from Data Layers": "Alle hinzugefügten Einträge aus Datenebenen entfernen",
   "Showing {shown} of {total}": "{shown} von {total} angezeigt",
-  "BROWSE DATA LIBRARY": "DATENBIBLIOTHEK DURCHSUCHEN"
+  "BROWSE DATA LIBRARY": "DATENBIBLIOTHEK DURCHSUCHEN",
+  "That control is unavailable for this view.": "Diese Steuerung ist in dieser Ansicht nicht verfügbar.",
+  "The selected target has changed.": "Das ausgewählte Ziel hat sich geändert.",
+  "The immersive view is no longer active.": "Die immersive Ansicht ist nicht mehr aktiv.",
+  "The ridden target has changed.": "Das Ziel dieser Ansicht hat sich geändert.",
+  "That signal is no longer available.": "Dieses Signal ist nicht mehr verfügbar.",
+  "Unknown immersive control.": "Unbekannte Steuerung für die immersive Ansicht."
 }

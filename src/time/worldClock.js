@@ -94,7 +94,32 @@ export function createWorldClock({
       console.error(`World time coverage failed: ${source.id}`, error);
       return null;
     }
-    return span && span.end >= span.start ? span : null;
+    return span &&
+      isWorldTime(span.start) &&
+      isWorldTime(span.end) &&
+      span.end >= span.start
+      ? span
+      : null;
+  };
+  const coverageOf = (ids = null) => {
+    const selected =
+      ids === null ? null : new Set(typeof ids === 'string' ? [ids] : ids);
+    let start = Infinity;
+    let end = -Infinity;
+    const marks = new Set();
+    for (const { source } of sources) {
+      if (selected && !selected.has(source.id)) continue;
+      const span = spanOf(source);
+      if (!span) continue;
+      start = Math.min(start, span.start);
+      end = Math.max(end, span.end);
+      for (const mark of span.marks ?? [])
+        if (isWorldTime(mark) && mark >= span.start && mark <= span.end)
+          marks.add(mark);
+    }
+    return start <= end
+      ? { start, end, marks: [...marks].sort((a, b) => a - b) }
+      : null;
   };
   // Whether a layer that moves with the clock has time to show: only then is
   // there anything for a timeline to play.
@@ -387,20 +412,9 @@ export function createWorldClock({
     /** Whether a followed layer has time to show; see getState().supported. */
     isSupported,
     /** The union of the registered sources' coverage, or null with none. */
-    coverage() {
-      let start = Infinity;
-      let end = -Infinity;
-      const marks = new Set();
-      for (const { source } of sources) {
-        const span = spanOf(source);
-        if (!span) continue;
-        start = Math.min(start, span.start);
-        end = Math.max(end, span.end);
-        for (const mark of span.marks ?? []) marks.add(mark);
-      }
-      if (start > end) return null;
-      return { start, end, marks: [...marks].sort((a, b) => a - b) };
-    },
+    coverage: () => coverageOf(),
+    /** The coverage of just the named sources, for a focused investigation. */
+    coverageFor: (ids) => coverageOf(ids),
 
     getState,
     subscribe(listener) {

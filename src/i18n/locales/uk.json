@@ -3779,5 +3779,11 @@
   "Confirm: remove every added entry from Data Layers": "Підтвердити: видалити всі додані записи з «Шарів даних»",
   "Remove every added entry from Data Layers": "Видалити всі додані записи з «Шарів даних»",
   "Showing {shown} of {total}": "Показано {shown} з {total}",
-  "BROWSE DATA LIBRARY": "ВІДКРИТИ БІБЛІОТЕКУ ДАНИХ"
+  "BROWSE DATA LIBRARY": "ВІДКРИТИ БІБЛІОТЕКУ ДАНИХ",
+  "That control is unavailable for this view.": "Цей елемент керування недоступний у цьому вигляді.",
+  "The selected target has changed.": "Вибрана ціль змінилася.",
+  "The immersive view is no longer active.": "Імерсивний вигляд більше не активний.",
+  "The ridden target has changed.": "Ціль, за якою слідує цей вигляд, змінилася.",
+  "That signal is no longer available.": "Цей сигнал більше недоступний.",
+  "Unknown immersive control.": "Невідома команда імерсивного вигляду."
 }
