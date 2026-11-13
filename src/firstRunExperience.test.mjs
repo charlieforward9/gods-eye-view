@@ -257,6 +257,7 @@ test('the JS and CSS lists of screen-claiming surfaces stay in step', () => {
   const css = readStylesheet(new URL('../style.css', import.meta.url));
 
   assert.deepEqual([...EXCLUSIVE_SURFACE_CLASSES].sort(), [
+    'chat-view-mode',
     'cockpit-mode',
     'recording-mode',
     'scene-playback-mode',

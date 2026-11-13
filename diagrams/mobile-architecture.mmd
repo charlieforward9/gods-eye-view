@@ -1,0 +1,43 @@
+%% GEV mobile architecture, November 10, 2026.
+%% Source of truth: src/chatView, src/standalone/chatViewHost.js,
+%% src/voice/textAgent.js, src/ui/immersiveControls.js, src/time/worldClock.js.
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Arial, sans-serif","fontSize":"15px","primaryColor":"#eff6ff","primaryTextColor":"#0f172a","primaryBorderColor":"#2563eb","lineColor":"#475569","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#94a3b8"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":28,"rankSpacing":50}}}%%
+flowchart LR
+  UI["Mobile Vue shell<br/>composer, cards, timeline"]
+  KERNEL["Portable kernel, DOM-free<br/>intents + frozen snapshots"]
+  PORTS["Browser host ports<br/>engine / provider / platform"]
+  PERIOD["Event period<br/>query and layer filters"]
+  COVERAGE["Shared source coverage<br/>bounds, loading, live only"]
+  CLOCK["Shared world clock<br/>cursor + playback"]
+  COCKPIT["Shared Cockpit facade<br/>subject identity + entry gates"]
+  PROVIDER["Shared provider commands<br/>text agent + cancellation"]
+  OAUTH["Shared Realtime adapter<br/>explicit ChatGPT OAuth"]
+  ACTIONS["Shared action runner<br/>map tools + entity queries"]
+  GLOBE["One shared globe + layers<br/>trails, routes, orbit, ships"]
+  HTTP["Shared HTTP text chat<br/>OpenAI / Gemini"]
+  PROFILE["Server-owned map-chat profile<br/>canonical tools + instructions"]
+
+  UI <-->|intents / snapshots| KERNEL
+  COVERAGE -->|bounds + context| KERNEL
+  KERNEL --> PORTS
+  KERNEL --> PERIOD
+  PORTS -->|seek, play, live| CLOCK
+  PORTS -->|manual controls| COCKPIT
+  PORTS -->|typed questions| PROVIDER
+  CLOCK -->|world cursor| GLOBE
+  COCKPIT -->|camera ownership| GLOBE
+  PERIOD -->|query window| ACTIONS
+  PERIOD -->|event window| GLOBE
+  PROVIDER -->|tool calls| ACTIONS
+  PROVIDER -->|OAuth capability| OAUTH
+  OAUTH -->|tool calls| ACTIONS
+  ACTIONS --> GLOBE
+  PROVIDER <-->|history + fixed profile / answer| HTTP
+  PROFILE --> HTTP
+
+  classDef shell fill:#ede9fe,stroke:#6d28d9,color:#0f172a,stroke-width:1.5px;
+  classDef core fill:#e0f2fe,stroke:#0369a1,color:#0f172a,stroke-width:1.5px;
+  classDef server fill:#fef3c7,stroke:#b45309,color:#0f172a,stroke-width:1.5px;
+  class UI,KERNEL,PERIOD,PORTS shell;
+  class CLOCK,COVERAGE,COCKPIT,PROVIDER,OAUTH,ACTIONS,GLOBE core;
+  class HTTP,PROFILE server;

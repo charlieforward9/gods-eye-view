@@ -1,0 +1,1872 @@
+/* The chat view: one input, the globe as the answer, sessions to keep it
+   simple. Every surface is tinted glass without backdrop blur: a blur over a
+   canvas that repaints every frame re-blurs every frame. Motion is transform
+   and opacity only. It loads with the chat view (src/standalone/
+   chatViewShell.js); chat-view-mode.css holds the screen for it. */
+
+/* A reset with no weight of its own, so each control's own rule decides
+   its font and color. */
+:where(.cv-root) :where(button, input, textarea) {
+  font: inherit;
+  color: inherit;
+}
+.cv-root button {
+  -webkit-tap-highlight-color: transparent;
+}
+.cv-root [hidden] {
+  display: none !important;
+}
+
+.cv-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cv-live {
+  pointer-events: auto;
+}
+.cv-glass {
+  background: var(--cv-glass);
+  border: 1px solid var(--cv-line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- Session pill (the drawer, collapsed) ---------- */
+
+.cv-top {
+  position: absolute;
+  top: var(--cv-top);
+  left: 12px;
+  /* Clear of the two round buttons on the right. */
+  right: 108px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(100%, 420px);
+  height: 40px;
+  padding: 0 14px 0 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  transform-origin: top left;
+  transition: border-color 0.15s;
+}
+.cv-pill:hover {
+  border-color: var(--cv-line-strong);
+}
+.cv-pill .cv-burger {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--cv-raise);
+  flex: none;
+}
+.cv-pill .cv-title {
+  font: 500 14px var(--cv-sans);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-diff {
+  display: inline-flex;
+  gap: 6px;
+  font: 600 12px var(--cv-mono);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.cv-diff .add {
+  color: var(--cv-green);
+}
+.cv-diff .del {
+  color: var(--cv-red);
+}
+.cv-sig {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 11.5px var(--cv-mono);
+  color: var(--cv-red);
+  flex: none;
+}
+.cv-sig::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cv-red);
+  box-shadow: 0 0 10px var(--cv-red);
+}
+.cv-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cv-green);
+  box-shadow: 0 0 8px var(--cv-green);
+  flex: none;
+}
+.cv-live-dot.busy {
+  background: var(--cv-cyan);
+  box-shadow: 0 0 8px var(--cv-cyan);
+  animation: cv-pulse 1s ease-in-out infinite;
+}
+
+.cv-signal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(100%, 360px);
+  padding: 9px 13px 9px 11px;
+  border-radius: 999px;
+  border-color: rgba(255, 77, 94, 0.45);
+  cursor: pointer;
+  font: 500 12.5px var(--cv-sans);
+  white-space: nowrap;
+  animation: cv-drop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.cv-signal span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cv-signal i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cv-red);
+  box-shadow: 0 0 10px var(--cv-red);
+  flex: none;
+}
+
+/* ---------- Drawer ---------- */
+
+.cv-drawer {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+.cv-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.42);
+  cursor: pointer;
+}
+.cv-panel {
+  position: absolute;
+  top: var(--cv-top);
+  left: 12px;
+  bottom: var(--cv-bottom);
+  width: min(100vw - 24px, 360px);
+  border-radius: 24px;
+  background: var(--cv-glass-hi);
+  border: 1px solid var(--cv-line);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px 10px 14px;
+  transform-origin: top left;
+  overflow: hidden;
+}
+.cv-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px 0 4px;
+}
+.cv-brand {
+  font: 600 10.5px var(--cv-mono);
+  letter-spacing: 0.22em;
+  flex: 1;
+}
+.cv-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--cv-line);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--cv-muted);
+  flex: none;
+}
+.cv-icon-btn:hover {
+  color: var(--cv-ink);
+  border-color: var(--cv-line-strong);
+}
+.cv-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--cv-line-strong);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+}
+.cv-new:hover {
+  background: var(--cv-raise);
+}
+.cv-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--cv-raise);
+}
+.cv-seg button {
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  padding: 7px 0;
+  font: 500 12.5px var(--cv-sans);
+  color: var(--cv-muted);
+  cursor: pointer;
+}
+.cv-seg button[aria-pressed='true'],
+.cv-seg button[aria-checked='true'] {
+  background: rgba(232, 234, 237, 0.12);
+  color: var(--cv-ink);
+}
+.cv-groups {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding-right: 2px;
+}
+.cv-group h5 {
+  margin: 0 8px 4px;
+  font: 600 10px var(--cv-mono);
+  letter-spacing: 0.16em;
+  color: var(--cv-dim);
+  text-transform: uppercase;
+}
+.cv-sess {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: center;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 12px;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+.cv-sess:hover {
+  background: var(--cv-raise);
+}
+.cv-sess[aria-current='true'] {
+  background: var(--cv-cyan-dim);
+}
+.cv-sess b {
+  font-weight: 500;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-sess small {
+  grid-column: 1;
+  font-size: 12px;
+  color: var(--cv-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-sess .cv-sess-side {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.cv-watching {
+  font: 600 9.5px var(--cv-mono);
+  letter-spacing: 0.12em;
+  color: var(--cv-gold);
+}
+.cv-foot {
+  font: 10.5px/1.5 var(--cv-mono);
+  color: var(--cv-dim);
+  padding: 0 8px;
+}
+.cv-empty {
+  margin: 0 8px;
+  font-size: 12.5px;
+  color: var(--cv-dim);
+}
+
+/* ---------- Bottom stack: history, time, composer ---------- */
+
+.cv-bottom {
+  position: absolute;
+  left: 50%;
+  bottom: var(--cv-bottom);
+  width: var(--cv-column);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cv-history {
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* The globe is the answer: the questions never take more than half of it,
+     and the map stays legible through them. */
+  max-height: min(48vh, 440px);
+  max-height: min(48dvh, 440px);
+  background: rgba(6, 8, 13, 0.9);
+  border: 1px solid rgba(232, 234, 237, 0.08);
+  animation: cv-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cv-handle {
+  flex: none;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+}
+.cv-handle::before {
+  content: '';
+  width: 38px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--cv-line-strong);
+}
+.cv-history-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 14px 14px;
+  display: grid;
+  gap: 14px;
+}
+.cv-turn {
+  display: grid;
+  gap: 9px;
+}
+.cv-you {
+  justify-self: end;
+  max-width: 86%;
+  background: var(--cv-raise);
+  border-radius: 16px 16px 4px 16px;
+  padding: 8px 12px;
+  font-size: 14px;
+  display: grid;
+  gap: 5px;
+}
+.cv-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.cv-tag {
+  font: 500 10.5px/1 var(--cv-mono);
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: var(--cv-gold-dim);
+  color: var(--cv-gold);
+}
+.cv-answer {
+  display: grid;
+  gap: 8px;
+  font-size: 14.5px;
+}
+.cv-say {
+  line-height: 1.45;
+}
+.cv-answer.failed .cv-say {
+  color: var(--cv-muted);
+}
+.cv-caveat {
+  font-size: 12px;
+  color: var(--cv-dim);
+}
+/* A provider's credit, beside its numbers and never faded. */
+.cv-sources {
+  margin: 0;
+  padding: 0 6px;
+  font: 400 11px/1.4 var(--cv-sans);
+  color: var(--cv-muted);
+}
+.cv-sources a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  pointer-events: auto;
+}
+.cv-sources a + a {
+  margin-inline-start: 10px;
+}
+.cv-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+.cv-rows button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 1px 9px;
+  align-items: baseline;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.cv-rows button:hover {
+  background: var(--cv-raise);
+}
+.cv-rows .n {
+  font: 600 11px var(--cv-mono);
+  color: var(--cv-gold);
+  grid-row: 1 / span 2;
+}
+.cv-rows .t {
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-rows .s {
+  font: 11px var(--cv-mono);
+  color: var(--cv-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-rows .alert .t,
+.cv-rows .alert .n {
+  color: var(--cv-red);
+}
+.cv-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cv-verbs {
+  font: 11px/1.5 var(--cv-mono);
+  color: var(--cv-dim);
+}
+.cv-verbs b {
+  color: var(--cv-cyan);
+  font-weight: 500;
+}
+.cv-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--cv-line);
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font: 500 11px var(--cv-mono);
+  color: var(--cv-muted);
+  cursor: pointer;
+}
+.cv-view:hover {
+  color: var(--cv-gold);
+  border-color: rgba(241, 205, 132, 0.45);
+}
+.cv-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cv-act {
+  border: 1px solid var(--cv-line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 11px;
+  font: 500 12px var(--cv-sans);
+  color: var(--cv-muted);
+  cursor: pointer;
+}
+.cv-act:hover,
+.cv-act[aria-pressed='true'] {
+  color: var(--cv-gold);
+  border-color: rgba(241, 205, 132, 0.5);
+}
+.cv-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 12px var(--cv-mono);
+  color: var(--cv-cyan);
+}
+.cv-working::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cv-cyan);
+  animation: cv-pulse 1s ease-in-out infinite;
+}
+
+.cv-time {
+  border-radius: 16px;
+  padding: 8px 10px 8px 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+.cv-time .at {
+  font: 600 12.5px var(--cv-mono);
+  color: var(--cv-gold);
+  /* A fixed width: a longer label ("Tue 7:54 PM") must not move the track
+     under a finger mid-drag. */
+  width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.cv-time .at.live {
+  color: var(--cv-dim);
+}
+.cv-track {
+  position: relative;
+  height: 34px;
+  cursor: ew-resize;
+  touch-action: none;
+  /* Time runs left to right in every language. */
+  direction: ltr;
+}
+.cv-track .rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 13px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--cv-line-strong);
+}
+.cv-track .span {
+  position: absolute;
+  top: 13px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--cv-gold);
+}
+.cv-track .ev {
+  position: absolute;
+  top: 10px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: var(--cv-amber);
+  opacity: 0.8;
+}
+.cv-track .ev.alert {
+  background: var(--cv-red);
+}
+.cv-track .hd {
+  position: absolute;
+  top: 3px;
+  width: 2px;
+  height: 22px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--cv-gold);
+  box-shadow: 0 0 12px var(--cv-gold);
+}
+/* The Live chip, always in its place so the track never changes width: it
+   glows red while time is live, and in the past it is the way back. */
+.cv-golive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--cv-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  font: 600 10.5px var(--cv-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cv-muted);
+}
+.cv-golive i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cv-golive:hover {
+  color: var(--cv-ink);
+}
+.cv-golive.on {
+  cursor: default;
+  border-color: rgba(255, 77, 94, 0.4);
+  background: rgba(255, 77, 94, 0.12);
+  color: var(--cv-red);
+}
+.cv-liveonly {
+  grid-column: 1 / -1;
+  font: 10.5px var(--cv-mono);
+  color: var(--cv-dim);
+  margin-top: -4px;
+}
+
+.cv-composer {
+  background: rgba(10, 13, 21, 0.8);
+  border-radius: 24px;
+  padding: 8px 8px 8px 14px;
+  display: grid;
+  gap: 6px;
+}
+.cv-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.cv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 7px 5px 9px;
+  border-radius: 999px;
+  background: var(--cv-gold-dim);
+  color: var(--cv-gold);
+  font: 500 12px var(--cv-sans);
+  border: 0;
+  cursor: pointer;
+}
+.cv-chip.cyan {
+  background: var(--cv-cyan-dim);
+  color: var(--cv-cyan);
+}
+.cv-chip span {
+  opacity: 0.7;
+}
+.cv-composer textarea {
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  /* 16px: iOS zooms the page into any smaller field it focuses. */
+  font: 400 16px/1.4 var(--cv-sans);
+  padding: 6px 0 2px;
+  max-height: 92px;
+}
+.cv-composer textarea::placeholder {
+  color: var(--cv-dim);
+}
+.cv-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* A grid item: without this its track grows to the whole row. */
+  min-width: 0;
+}
+.cv-spacer {
+  flex: 1;
+}
+.cv-tool {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cv-line);
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: 500 12.5px var(--cv-sans);
+  color: var(--cv-muted);
+  white-space: nowrap;
+}
+.cv-tool svg {
+  width: 16px;
+  height: 16px;
+}
+.cv-tool:hover {
+  color: var(--cv-ink);
+  border-color: var(--cv-line-strong);
+}
+.cv-tool[aria-pressed='true'],
+.cv-tool[aria-expanded='true'] {
+  color: var(--cv-gold);
+  border-color: rgba(241, 205, 132, 0.5);
+  background: var(--cv-gold-dim);
+}
+.cv-tool.plus {
+  padding: 0;
+  width: 34px;
+}
+.cv-tool .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cv-red);
+}
+.cv-tool .dot.past {
+  background: var(--cv-gold);
+}
+.cv-tool.mic[aria-pressed='true'] {
+  color: var(--cv-red);
+  border-color: rgba(255, 77, 94, 0.5);
+  background: rgba(255, 77, 94, 0.12);
+}
+.cv-count {
+  font: 600 11px var(--cv-mono);
+}
+/* A phone keeps every tool and the send button on one row: Watch shows as
+   its bell alone, and below 390px the row packs closer and the Time button
+   reads its short form ("24 h"). Only the Time button may shrink, so its
+   label gives way before anything leaves the row. */
+.cv-tools > * {
+  flex: none;
+}
+.cv-tools > .cv-spacer {
+  flex: 1 1 0;
+}
+.cv-tools > .cv-tool.time {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.cv-time-label.short {
+  display: none;
+}
+@media (max-width: 420px) {
+  .cv-tool-label {
+    display: none;
+  }
+}
+@media (max-width: 389px) {
+  .cv-composer {
+    padding: 8px 6px 8px 12px;
+  }
+  .cv-tools {
+    gap: 3px;
+  }
+  .cv-tool {
+    padding: 0 8px;
+    gap: 5px;
+  }
+  .cv-tool.plus {
+    padding: 0;
+  }
+  .cv-time-label {
+    display: none;
+  }
+  .cv-time-label.short {
+    display: inline;
+  }
+}
+@media (max-width: 340px) {
+  .cv-tools {
+    gap: 2px;
+  }
+  .cv-tool {
+    padding: 0 7px;
+    gap: 4px;
+  }
+}
+.cv-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--cv-ink);
+  color: var(--cv-void);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.cv-send:disabled {
+  background: var(--cv-raise);
+  color: var(--cv-dim);
+  cursor: default;
+}
+.cv-send svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ---------- The answer, floating on the composer ---------- */
+
+/* One soft fade behind the bottom stack instead of a card: the answer reads
+   over the map and the map still reads through it. */
+.cv-bottom::before {
+  content: '';
+  position: absolute;
+  left: -50vw;
+  right: -50vw;
+  bottom: calc(-1 * var(--cv-bottom));
+  height: calc(100% + 96px);
+  background: linear-gradient(
+    to top,
+    rgba(4, 5, 10, 0.78) 0%,
+    rgba(4, 5, 10, 0.5) 45%,
+    rgba(4, 5, 10, 0) 100%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+.cv-bottom--panel::before {
+  display: none;
+}
+.cv-float {
+  display: grid;
+  gap: 8px;
+  animation: cv-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cv-float-say {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0 6px;
+  text-align: left;
+  cursor: pointer;
+  text-shadow:
+    0 1px 10px rgba(0, 0, 0, 0.85),
+    0 0 2px rgba(0, 0, 0, 0.9);
+}
+.cv-float-say .cv-live-dot {
+  margin-top: 6px;
+}
+.cv-float-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font: 500 15px/1.35 var(--cv-sans);
+}
+.cv-float-text small {
+  font: 400 12px var(--cv-sans);
+  color: var(--cv-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-float-text em {
+  font: 400 12.5px/1.4 var(--cv-sans);
+  font-style: normal;
+  color: var(--cv-amber);
+}
+.cv-live-dot.issue {
+  background: var(--cv-amber);
+  box-shadow: 0 0 8px var(--cv-amber);
+}
+.cv-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 2px 2px;
+}
+.cv-chips:not(.cv-suggestions) {
+  -webkit-mask-image: linear-gradient(to right, #000 88%, transparent);
+  mask-image: linear-gradient(to right, #000 88%, transparent);
+}
+/* Right to left, the row overflows on the left. */
+[dir='rtl'] .cv-chips:not(.cv-suggestions) {
+  -webkit-mask-image: linear-gradient(to left, #000 88%, transparent);
+  mask-image: linear-gradient(to left, #000 88%, transparent);
+}
+.cv-chips::-webkit-scrollbar {
+  display: none;
+}
+.cv-chips.cv-suggestions {
+  min-width: 0;
+  flex-wrap: nowrap;
+  padding: 2px;
+  scrollbar-width: thin;
+  scroll-padding-inline: 2px;
+}
+.cv-suggestions::-webkit-scrollbar {
+  display: block;
+  height: 3px;
+}
+.cv-rchip {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 78vw;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 234, 237, 0.12);
+  background: rgba(10, 13, 21, 0.6);
+  font: 500 13px var(--cv-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.cv-rchip:hover {
+  border-color: var(--cv-line-strong);
+}
+.cv-rchip .n {
+  font: 600 11px var(--cv-mono);
+  color: var(--cv-gold);
+}
+.cv-rchip small {
+  font: 400 11px var(--cv-mono);
+  color: var(--cv-muted);
+}
+.cv-rchip.alert {
+  border-color: rgba(255, 77, 94, 0.55);
+}
+.cv-rchip.alert .n {
+  color: var(--cv-red);
+}
+.cv-rchip.act {
+  color: var(--cv-muted);
+  background: transparent;
+}
+.cv-rchip.act[aria-pressed='true'] {
+  color: var(--cv-gold);
+  border-color: rgba(241, 205, 132, 0.5);
+}
+.cv-rchip.ghost {
+  background: rgba(10, 13, 21, 0.45);
+  color: var(--cv-ink);
+}
+.cv-suggestions .cv-rchip {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 44px;
+  align-items: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+@media (max-width: 480px) {
+  .cv-suggestions {
+    scroll-snap-type: x mandatory;
+  }
+  .cv-suggestions .cv-rchip {
+    flex-basis: 100%;
+    scroll-snap-align: start;
+  }
+}
+.cv-pill-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font: 600 12px var(--cv-mono);
+  color: var(--cv-muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.cv-pill-count b {
+  font-weight: 600;
+  color: var(--cv-green);
+}
+/* The timeline's button in the composer reads where time is. */
+.cv-time-label {
+  font: 600 12px var(--cv-mono);
+  max-width: 84px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- + menu ---------- */
+
+.cv-menu {
+  border-radius: 20px;
+  max-height: 58vh;
+  max-height: 58dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  animation: cv-rise 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cv-menu-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 0;
+}
+.cv-menu-tabs button {
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  padding: 7px 11px;
+  font: 500 13px var(--cv-sans);
+  color: var(--cv-muted);
+  cursor: pointer;
+}
+.cv-menu-tabs button[aria-selected='true'] {
+  background: var(--cv-raise);
+  color: var(--cv-ink);
+}
+.cv-menu-tabs .cv-count {
+  color: var(--cv-green);
+  margin-left: 4px;
+}
+.cv-menu-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 6px 8px;
+}
+.cv-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  border-radius: 12px;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+.cv-item:hover {
+  background: var(--cv-raise);
+}
+.cv-item .ic {
+  grid-row: 1 / span 2;
+  font-size: 15px;
+  text-align: center;
+  color: var(--cv-muted);
+}
+.cv-item b {
+  font-weight: 500;
+  font-size: 14px;
+}
+.cv-item small {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--cv-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-item .side {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  font: 500 11px var(--cv-mono);
+  color: var(--cv-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cv-item .side.connect {
+  color: var(--cv-gold);
+}
+.cv-state {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--cv-line-strong);
+}
+.cv-state.live {
+  background: var(--cv-green);
+  border-color: transparent;
+  box-shadow: 0 0 8px var(--cv-green);
+}
+.cv-state.loading {
+  background: var(--cv-cyan);
+  border-color: transparent;
+  animation: cv-pulse 1s ease-in-out infinite;
+}
+.cv-state.degraded {
+  background: var(--cv-amber);
+  border-color: transparent;
+}
+.cv-state.connect {
+  background: transparent;
+  border-color: var(--cv-gold);
+}
+.cv-menu-h {
+  margin: 10px 10px 4px;
+  font: 600 10px var(--cv-mono);
+  letter-spacing: 0.16em;
+  color: var(--cv-dim);
+  text-transform: uppercase;
+}
+.cv-basemap {
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 6px 2px;
+}
+.cv-basemap button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cv-basemap-note {
+  display: block;
+  margin: 4px 10px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--cv-dim);
+}
+.cv-search {
+  width: calc(100% - 12px);
+  margin: 4px 6px 2px;
+  border: 1px solid var(--cv-line);
+  background: var(--cv-raise);
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+  /* 16px: iOS zooms the page into any smaller field it focuses. */
+  font-size: 16px;
+}
+.cv-search:focus {
+  border-color: var(--cv-line-strong);
+}
+/* A layer's own controls under its row, as desktop's row has them: chips,
+   a one-of-many switch, a slider, a legend and an info line, lined up with
+   the row's name. */
+.cv-controls {
+  display: grid;
+  gap: 8px;
+  margin: -2px 0 6px;
+  padding: 0 10px 4px 46px;
+}
+/* The narrowest phones give the controls the row's whole width. */
+@media (max-width: 359px) {
+  .cv-controls {
+    padding-left: 10px;
+  }
+}
+.cv-chips,
+.cv-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--cv-line);
+  border-radius: 999px;
+  background: transparent;
+  font: 500 12px var(--cv-sans);
+  color: var(--cv-muted);
+  cursor: pointer;
+}
+.cv-chip[aria-pressed='true'] {
+  border-color: var(--cv-line-strong);
+  background: rgba(232, 234, 237, 0.12);
+  color: var(--cv-ink);
+}
+.cv-chip.error {
+  border-color: var(--cv-red);
+  color: var(--cv-red);
+}
+.cv-chip:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+.cv-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.cv-ctl-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: -3px;
+  font: 600 10px var(--cv-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cv-dim);
+}
+.cv-ctl-h output {
+  font: 500 12px var(--cv-mono);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cv-ink);
+}
+.cv-ctl-seg {
+  display: flex;
+  flex-wrap: wrap;
+}
+.cv-ctl-seg button {
+  flex: 1 0 auto;
+  min-width: 36px;
+  min-height: 32px;
+  padding: 0 8px;
+}
+.cv-ctl-seg button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cv-ctl-slider {
+  display: grid;
+  gap: 4px;
+}
+/* The scale reads left to right in every language, as its ticks do. */
+.cv-root .cv-range,
+.cv-ticks {
+  direction: ltr;
+}
+.cv-root .cv-range {
+  height: 28px;
+}
+.cv-root .cv-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--cv-track, var(--cv-raise));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.cv-root .cv-range::-moz-range-track,
+.cv-root .cv-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--cv-track, var(--cv-raise));
+}
+.cv-root .cv-range::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  background: var(--cv-ink);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.cv-root .cv-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  background: var(--cv-ink);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+/* Under the thumb's center at either end. */
+.cv-ticks {
+  position: relative;
+  height: 14px;
+  margin: 0 11px;
+  font: 500 10px var(--cv-mono);
+  color: var(--cv-dim);
+}
+.cv-ticks span {
+  position: absolute;
+  top: 0;
+  left: var(--at);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.cv-ticks span:first-child {
+  transform: none;
+}
+.cv-legend {
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--cv-muted);
+}
+.cv-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cv-ctl-info {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--cv-muted);
+  overflow-wrap: anywhere;
+}
+.cv-slash {
+  font: 500 12px var(--cv-mono);
+  color: var(--cv-cyan);
+}
+
+.cv-toast {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--cv-top) + 52px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: center;
+  animation: cv-drop 0.3s ease-out;
+}
+
+/* ---------- Timeline ---------- */
+
+.cv-time {
+  animation: cv-rise 0.22s ease-out;
+}
+
+/* ---------- Map only ---------- */
+
+/* The app's clean view (the button or V): everything but this one button
+   fades off the globe, and it stays in place to bring it all back. */
+.cv-map-only {
+  position: absolute;
+  top: var(--cv-top);
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--cv-muted);
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    color 0.15s,
+    border-color 0.15s;
+}
+.cv-map-only:hover,
+.cv-map-only:focus-visible {
+  color: var(--cv-ink);
+  border-color: var(--cv-line-strong);
+}
+/* Beside it, the way back to the panels. */
+.cv-to-panels {
+  position: absolute;
+  top: var(--cv-top);
+  right: 60px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--cv-muted);
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    color 0.15s,
+    border-color 0.15s;
+}
+.cv-to-panels:hover,
+.cv-to-panels:focus-visible {
+  color: var(--cv-ink);
+  border-color: var(--cv-line-strong);
+}
+.cv-top,
+.cv-bottom,
+.cv-toast {
+  transition:
+    opacity 0.2s ease,
+    translate 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s;
+}
+body.ui-clean-view .cv-top,
+body.ui-clean-view .cv-bottom,
+body.ui-clean-view .cv-toast,
+body.ui-clean-view .cv-to-panels {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.2s ease,
+    translate 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s 0.28s;
+}
+body.ui-clean-view .cv-top {
+  translate: 0 -12px;
+}
+body.ui-clean-view .cv-bottom {
+  translate: 0 24px;
+}
+body.ui-clean-view .cv-map-only {
+  opacity: 0.6;
+}
+body.ui-clean-view .cv-map-only:hover,
+body.ui-clean-view .cv-map-only:focus-visible {
+  opacity: 1;
+}
+
+@keyframes cv-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes cv-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes cv-drop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+.cv-signal {
+  animation-name: cv-fade;
+}
+@keyframes cv-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-root *,
+  .cv-root *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* The collapse chevron points back at the pill, which sits on the right in
+   right-to-left languages. */
+[dir='rtl'] .cv-panel-head .cv-icon-btn svg {
+  scale: -1 1;
+}
+
+/* The timeline's day and hour marks, under the rail. */
+.cv-track .tick {
+  position: absolute;
+  top: 10px;
+  width: 1px;
+  height: 8px;
+  margin-left: -0.5px;
+  background: var(--cv-line-strong);
+}
+.cv-track .tick span {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  translate: -50% 0;
+  letter-spacing: -0.02em;
+  font: 9px var(--cv-mono);
+  color: var(--cv-dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* The week's edge mark reads inward, inside the track. */
+.cv-track .tick.first span {
+  left: 0;
+  translate: 0 0;
+}
+
+/* The Look tab's six styles, three to a row. */
+.cv-styles {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 6px 4px;
+}
+
+/* Desktop's side panels as cards over the answer: the tapped object, the
+   camera being watched, the cockpit's steps. */
+.cv-card {
+  border-radius: 16px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+.cv-card-title {
+  font: 600 13.5px var(--cv-sans);
+  color: var(--cv-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-card-line {
+  margin: 0;
+  font: 12.5px/1.4 var(--cv-sans);
+  color: var(--cv-muted);
+}
+.cv-card-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 11.5px/1.45 var(--cv-mono);
+  color: var(--cv-dim);
+}
+.cv-card-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.cv-camera-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 14px;
+}
+.cv-camera-description {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.cv-camera-description small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px var(--cv-sans);
+  color: var(--cv-muted);
+}
+.cv-camera-status {
+  grid-column: 1 / -1;
+  margin: -3px 0 2px;
+  font: 11px/1.4 var(--cv-sans);
+  overflow-wrap: anywhere;
+  color: var(--cv-amber);
+}
+.cv-camera-actions {
+  display: flex;
+}
+.cv-camera-actions button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cv-ink);
+  cursor: pointer;
+}
+.cv-camera-actions button:hover,
+.cv-camera-actions button[aria-pressed='true'] {
+  background: var(--cv-raise);
+  border-color: var(--cv-line);
+}
+.cv-camera-actions svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+[dir='rtl'] .cv-camera-actions button:nth-child(-n + 2) svg {
+  scale: -1 1;
+}
+
+/* Leave the map and scrubber visible while optional time controls scroll. */
+.cv-time.cv-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 12px;
+}
+.cv-time-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font: 600 11px var(--cv-sans);
+}
+.cv-time-heading .cv-golive {
+  min-height: 44px;
+}
+.cv-time-readout {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: end;
+  font: 11px var(--cv-mono);
+  color: var(--cv-gold);
+}
+.cv-time-track {
+  flex: none;
+  height: 44px;
+}
+.cv-time-scrub {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  accent-color: var(--cv-gold);
+  touch-action: none;
+  cursor: ew-resize;
+  direction: ltr;
+}
+.cv-time-track .ev {
+  top: 34px;
+  width: 5px;
+  height: 5px;
+  pointer-events: none;
+}
+.cv-time-range-bar {
+  position: absolute;
+  height: 6px;
+  bottom: 1px;
+  border-radius: 4px;
+  background: var(--cv-gold-dim);
+  pointer-events: none;
+}
+.cv-time-details > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--cv-muted);
+  cursor: pointer;
+  list-style: none;
+  font: 11px/1.3 var(--cv-sans);
+}
+.cv-time-details > summary::-webkit-details-marker {
+  display: none;
+}
+.cv-time-endpoint > span {
+  display: block;
+  color: var(--cv-dim);
+}
+.cv-time-endpoint:last-child {
+  text-align: end;
+}
+.cv-time-details > summary b {
+  padding: 5px 8px;
+  border: 1px solid var(--cv-line-strong);
+  border-radius: 999px;
+  color: var(--cv-ink);
+}
+.cv-time-details > summary b::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-inline-start: 6px;
+  border: solid currentColor;
+  border-width: 0 1px 1px 0;
+  vertical-align: 2px;
+  transform: rotate(45deg);
+}
+.cv-time-details[open] > summary b::after {
+  transform: rotate(225deg);
+}
+.cv-time-options {
+  display: grid;
+  gap: 8px;
+  max-height: min(24dvh, 230px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 4px 1px;
+}
+.cv-time-coverage li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+}
+.cv-time-zone,
+.cv-time-coverage,
+.cv-time-window p,
+.cv-time-empty,
+.cv-time-note {
+  margin: 0;
+  font: 11px/1.45 var(--cv-sans);
+  color: var(--cv-muted);
+  overflow-wrap: anywhere;
+}
+.cv-time-note {
+  color: var(--cv-amber);
+}
+.cv-time-window,
+.cv-provider {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--cv-line-strong);
+  border-radius: 12px;
+}
+.cv-time-window legend,
+.cv-provider legend {
+  padding: 0 5px;
+  font: 600 12px var(--cv-sans);
+}
+.cv-time-presets,
+.cv-time-playback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.cv-time-presets button,
+.cv-time-playback button {
+  min-height: 44px;
+  padding: 6px 10px;
+  color: var(--cv-ink);
+  background: var(--cv-raise);
+  border: 1px solid var(--cv-line-strong);
+  border-radius: 10px;
+  cursor: pointer;
+  font: 12px var(--cv-sans);
+}
+.cv-time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.cv-time-fields label,
+.cv-provider-auth,
+.cv-time-playback label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font: 11px var(--cv-sans);
+  color: var(--cv-muted);
+}
+.cv-time-fields input,
+.cv-time-playback select,
+.cv-provider select {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px;
+  border: 1px solid var(--cv-line-strong);
+  border-radius: 8px;
+  background: var(--cv-void);
+  color: var(--cv-ink);
+  color-scheme: dark;
+  font: 16px var(--cv-sans);
+}
+.cv-time-coverage {
+  display: grid;
+  gap: 6px;
+  padding: 8px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--cv-line);
+}
+.cv-provider {
+  margin-top: 12px;
+}
+.cv-provider-auth {
+  margin-top: 10px;
+}
+.cv-provider-status {
+  margin: 8px 0 0;
+  font: 12px/1.4 var(--cv-sans);
+  color: var(--cv-amber);
+}
+.cv-immersion {
+  max-height: min(48dvh, 420px);
+  padding: 6px 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.cv-immersion-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+}
+.cv-immersion-subject {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding-inline: 4px;
+}
+.cv-immersion-subject .cv-card-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-immersion button,
+.cv-immersion-enter,
+.cv-immersion-signals summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+.cv-immersion .cv-rchip {
+  max-width: 100%;
+  padding: 4px 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cv-immersion .cv-immersion-exit {
+  grid-column: 3;
+  grid-row: 1;
+  font-size: 20px;
+}
+.cv-immersion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.cv-immersion-actions output {
+  align-self: center;
+  padding: 0 4px;
+  font: 12px var(--cv-mono);
+  color: var(--cv-gold);
+}
+.cv-immersion-look {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(44px, 1fr));
+  gap: 4px;
+}
+.cv-immersion-signals {
+  grid-column: 2;
+  grid-row: 1;
+  max-width: 100%;
+}
+.cv-immersion-signals[open] {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  border-top: 1px solid var(--cv-line);
+  padding-top: 4px;
+}
+.cv-immersion-signals summary {
+  cursor: pointer;
+  font: 600 12px var(--cv-sans);
+}
+.cv-immersion-signals summary::-webkit-details-marker {
+  display: none;
+}
+.cv-immersion-signals[open] summary span {
+  transform: rotate(180deg);
+}
+.cv-immersion-signals li {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+@media (max-width: 420px) {
+  .cv-time-options {
+    max-height: clamp(154px, 24dvh, 230px);
+  }
+  .cv-time-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

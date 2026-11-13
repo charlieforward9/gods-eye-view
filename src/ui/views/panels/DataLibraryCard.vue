@@ -13,7 +13,10 @@ import {
 // what it is, who provides it under what licence, what this instance needs
 // to serve it, and Add / Remove / Zoom. The parent keys cards by entry id, so
 // a card (and its focused button) survives Add becoming Remove.
-const props = defineProps({ row: { type: Object, required: true } });
+const props = defineProps({
+  row: { type: Object, required: true },
+  compact: Boolean,
+});
 const emit = defineEmits(['add', 'remove', 'zoom']);
 
 const entry = computed(() => props.row.entry);
@@ -37,7 +40,7 @@ const actionLabel = computed(() =>
     <div class="data-library-item-head">
       <span class="data-library-icon" aria-hidden="true">{{ entry.icon }}</span>
       <span class="data-library-name">{{ entry.title }}</span>
-      <span class="data-library-badges">
+      <span v-if="!compact" class="data-library-badges">
         <span
           v-for="badge in libraryBadges(entry)"
           :key="badge.label"
@@ -47,25 +50,38 @@ const actionLabel = computed(() =>
         >
       </span>
     </div>
-    <p class="data-library-description">{{ entry.description }}</p>
-    <dl v-if="entry.imagery" class="data-library-specs">
-      <div
-        v-for="spec in imagerySpecs(entry)"
-        :key="spec.label"
-        class="data-library-spec"
-      >
-        <dt>{{ spec.label }}</dt>
-        <dd>{{ spec.value }}</dd>
-      </div>
-    </dl>
-    <p class="data-library-meta">
-      <span translate="no">{{ entry.provider }}</span> ·
-      <span>{{ coverageText(entry) }}</span> ·
-      <a :href="entry.licence.url" target="_blank" rel="noopener noreferrer">{{
-        entry.licence.name
-      }}</a>
-    </p>
-    <p v-if="reason" class="data-library-reason">{{ reason }}</p>
+    <p v-if="compact" class="data-library-meta" translate="no">{{ entry.provider }}</p>
+    <p v-if="compact && reason" class="data-library-reason">{{ reason }}</p>
+    <component :is="compact ? 'details' : 'div'" class="data-library-item-details">
+      <summary v-if="compact">{{ t('Details') }}</summary>
+      <span v-if="compact" class="data-library-badges">
+        <span
+          v-for="badge in libraryBadges(entry)"
+          :key="badge.label"
+          class="data-library-badge"
+          :class="badge.tone ? `data-library-badge--${badge.tone}` : undefined"
+        >{{ badge.label }}</span>
+      </span>
+      <p class="data-library-description">{{ entry.description }}</p>
+      <dl v-if="entry.imagery" class="data-library-specs">
+        <div
+          v-for="spec in imagerySpecs(entry)"
+          :key="spec.label"
+          class="data-library-spec"
+        >
+          <dt>{{ spec.label }}</dt>
+          <dd>{{ spec.value }}</dd>
+        </div>
+      </dl>
+      <p class="data-library-meta">
+        <template v-if="!compact"><span translate="no">{{ entry.provider }}</span> · </template>
+        <span>{{ coverageText(entry) }}</span> ·
+        <a :href="entry.licence.url" target="_blank" rel="noopener noreferrer">{{
+          entry.licence.name
+        }}</a>
+      </p>
+    </component>
+    <p v-if="!compact && reason" class="data-library-reason">{{ reason }}</p>
     <div v-if="entry.kind !== 'pack'" class="data-library-actions">
       <UiButton
         v-if="row.added && row.canZoom"
